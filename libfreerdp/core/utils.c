@@ -20,6 +20,8 @@
 
 #include <freerdp/config.h>
 
+#include "settings.h"
+
 #include <winpr/assert.h>
 
 #include <freerdp/freerdp.h>
@@ -61,10 +63,10 @@ static BOOL utils_copy_smartcard_settings(const rdpSettings* settings, rdpSettin
 
 auth_status utils_authenticate_gateway(freerdp* instance, rdp_auth_reason reason)
 {
-	rdpSettings* settings;
-	rdpSettings* origSettings;
+	rdpSettings* settings = NULL;
+	rdpSettings* origSettings = NULL;
 	BOOL prompt = FALSE;
-	BOOL proceed;
+	BOOL proceed = 0;
 
 	WINPR_ASSERT(instance);
 	WINPR_ASSERT(instance->context);
@@ -131,10 +133,10 @@ auth_status utils_authenticate_gateway(freerdp* instance, rdp_auth_reason reason
 
 auth_status utils_authenticate(freerdp* instance, rdp_auth_reason reason, BOOL override)
 {
-	rdpSettings* settings;
-	rdpSettings* origSettings;
+	rdpSettings* settings = NULL;
+	rdpSettings* origSettings = NULL;
 	BOOL prompt = !override;
-	BOOL proceed;
+	BOOL proceed = 0;
 
 	WINPR_ASSERT(instance);
 	WINPR_ASSERT(instance->context);
@@ -281,8 +283,19 @@ HANDLE utils_get_abort_event(rdpRdp* rdp)
 
 BOOL utils_abort_event_is_set(rdpRdp* rdp)
 {
-	DWORD status;
+	DWORD status = 0;
 	WINPR_ASSERT(rdp);
 	status = WaitForSingleObject(rdp->abortEvent, 0);
 	return status == WAIT_OBJECT_0;
+}
+
+const char* utils_is_vsock(const char* hostname)
+{
+	if (!hostname)
+		return NULL;
+
+	const char vsock[8] = "vsock://";
+	if (strncmp(hostname, vsock, sizeof(vsock)) == 0)
+		return &hostname[sizeof(vsock)];
+	return NULL;
 }

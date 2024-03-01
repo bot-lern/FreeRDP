@@ -209,7 +209,9 @@ DWORD WaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL bAlertabl
 			}
 			else if (ret < 0)
 			{
-				WLog_ERR(TAG, "waitpid failure [%d] %s", errno, strerror(errno));
+				char ebuffer[256] = { 0 };
+				WLog_ERR(TAG, "waitpid failure [%d] %s", errno,
+				         winpr_strerror(errno, ebuffer, sizeof(ebuffer)));
 				SetLastError(ERROR_INTERNAL_ERROR);
 				return WAIT_FAILED;
 			}
@@ -310,7 +312,9 @@ DWORD WaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL bAlertabl
 			status = pollset_poll(&pollset, dwMilliseconds);
 			if (status < 0)
 			{
-				WLog_ERR(TAG, "pollset_poll() failure [%d] %s", errno, strerror(errno));
+				char ebuffer[256] = { 0 };
+				WLog_ERR(TAG, "pollset_poll() failure [%d] %s", errno,
+				         winpr_strerror(errno, ebuffer, sizeof(ebuffer)));
 				goto out;
 			}
 		}
@@ -347,7 +351,6 @@ DWORD WaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWait
 	DWORD poll_map[MAXIMUM_WAIT_OBJECTS] = { 0 };
 	BOOL signalled_handles[MAXIMUM_WAIT_OBJECTS] = { FALSE };
 	int fd = -1;
-	DWORD index = 0;
 	int status = -1;
 	ULONG Type = 0;
 	WINPR_HANDLE* Object = NULL;
@@ -355,7 +358,8 @@ DWORD WaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWait
 	WINPR_POLL_SET pollset = { 0 };
 	DWORD ret = WAIT_FAILED;
 	size_t extraFds = 0;
-	UINT64 now = 0, dueTime = 0;
+	UINT64 now = 0;
+	UINT64 dueTime = 0;
 
 	if (!nCount || (nCount > MAXIMUM_WAIT_OBJECTS))
 	{
@@ -403,7 +407,8 @@ DWORD WaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWait
 		polled = 0;
 
 		/* first collect file descriptors to poll */
-		for (index = 0; index < nCount; index++)
+		DWORD index = 0;
+		for (; index < nCount; index++)
 		{
 			if (bWaitAll)
 			{
@@ -454,7 +459,7 @@ DWORD WaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWait
 		status = 0;
 		if (!autoSignaled)
 		{
-			DWORD waitTime;
+			DWORD waitTime = 0;
 
 			if (dwMilliseconds == INFINITE)
 				waitTime = INFINITE;
@@ -464,12 +469,13 @@ DWORD WaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWait
 			status = pollset_poll(&pollset, waitTime);
 			if (status < 0)
 			{
+				char ebuffer[256] = { 0 };
 #ifdef WINPR_HAVE_POLL_H
 				WLog_ERR(TAG, "poll() handle %" PRIu32 " (%" PRIu32 ") failure [%d] %s", index,
-				         nCount, errno, strerror(errno));
+				         nCount, errno, winpr_strerror(errno, ebuffer, sizeof(ebuffer)));
 #else
 				WLog_ERR(TAG, "select() handle %" PRIu32 " (%" PRIu32 ") failure [%d] %s", index,
-				         nCount, errno, strerror(errno));
+				         nCount, errno, winpr_strerror(errno, ebuffer, sizeof(ebuffer)));
 #endif
 				winpr_log_backtrace(TAG, WLOG_ERROR, 20);
 				SetLastError(ERROR_INTERNAL_ERROR);
@@ -487,7 +493,7 @@ DWORD WaitForMultipleObjectsEx(DWORD nCount, const HANDLE* lpHandles, BOOL bWait
 		/* then treat pollset */
 		if (status)
 		{
-			for (index = 0; index < polled; index++)
+			for (DWORD index = 0; index < polled; index++)
 			{
 				DWORD handlesIndex = 0;
 				BOOL signal_set = FALSE;

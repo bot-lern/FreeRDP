@@ -17,12 +17,29 @@
  * limitations under the License.
  */
 
-#include <assert.h>
+#include <fstream>
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error Could not find system header "<filesystem>" or "<experimental/filesystem>"
+#endif
+
+#include <cassert>
 #include "sdl_utils.hpp"
 
 #include "sdl_freerdp.hpp"
 
 #include <SDL.h>
+
+#include <winpr/path.h>
+#include <freerdp/version.h>
+#if defined(CJSON_FOUND)
+#include <cjson/cJSON.h>
+#endif
 
 const char* sdl_event_type_str(Uint32 type)
 {
@@ -102,6 +119,7 @@ const char* sdl_event_type_str(Uint32 type)
 		EV_CASE_STR(SDL_USEREVENT_AUTH_DIALOG);
 		EV_CASE_STR(SDL_USEREVENT_AUTH_RESULT);
 		EV_CASE_STR(SDL_USEREVENT_SCARD_DIALOG);
+		EV_CASE_STR(SDL_USEREVENT_RETRY_DIALOG);
 		EV_CASE_STR(SDL_USEREVENT_SCARD_RESULT);
 		EV_CASE_STR(SDL_USEREVENT_UPDATE);
 		EV_CASE_STR(SDL_USEREVENT_CREATE_WINDOWS);
@@ -155,7 +173,7 @@ BOOL sdl_push_user_event(Uint32 type, ...)
 	{
 		case SDL_USEREVENT_AUTH_RESULT:
 		{
-			SDL_UserAuthArg* arg = reinterpret_cast<SDL_UserAuthArg*>(ev.padding);
+			auto arg = reinterpret_cast<SDL_UserAuthArg*>(ev.padding);
 			arg->user = va_arg(ap, char*);
 			arg->domain = va_arg(ap, char*);
 			arg->password = va_arg(ap, char*);
@@ -164,7 +182,7 @@ BOOL sdl_push_user_event(Uint32 type, ...)
 		break;
 		case SDL_USEREVENT_AUTH_DIALOG:
 		{
-			SDL_UserAuthArg* arg = reinterpret_cast<SDL_UserAuthArg*>(ev.padding);
+			auto arg = reinterpret_cast<SDL_UserAuthArg*>(ev.padding);
 
 			arg->title = va_arg(ap, char*);
 			arg->user = va_arg(ap, char*);
@@ -180,6 +198,8 @@ BOOL sdl_push_user_event(Uint32 type, ...)
 			event->code = va_arg(ap, Sint32);
 		}
 		break;
+		case SDL_USEREVENT_RETRY_DIALOG:
+			break;
 		case SDL_USEREVENT_SCARD_RESULT:
 		case SDL_USEREVENT_SHOW_RESULT:
 		case SDL_USEREVENT_CERT_RESULT:
@@ -274,4 +294,172 @@ bool WinPREvent::isSet() const
 HANDLE WinPREvent::handle() const
 {
 	return _handle;
+}
+
+bool sdl_push_quit()
+{
+	SDL_Event ev = { 0 };
+	ev.type = SDL_QUIT;
+	SDL_PushEvent(&ev);
+	return true;
+}
+
+std::string sdl_window_event_str(Uint8 ev)
+{
+	switch (ev)
+	{
+		case SDL_WINDOWEVENT_NONE:
+			return "SDL_WINDOWEVENT_NONE";
+		case SDL_WINDOWEVENT_SHOWN:
+			return "SDL_WINDOWEVENT_SHOWN";
+		case SDL_WINDOWEVENT_HIDDEN:
+			return "SDL_WINDOWEVENT_HIDDEN";
+		case SDL_WINDOWEVENT_EXPOSED:
+			return "SDL_WINDOWEVENT_EXPOSED";
+		case SDL_WINDOWEVENT_MOVED:
+			return "SDL_WINDOWEVENT_MOVED";
+		case SDL_WINDOWEVENT_RESIZED:
+			return "SDL_WINDOWEVENT_RESIZED";
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+			return "SDL_WINDOWEVENT_SIZE_CHANGED";
+		case SDL_WINDOWEVENT_MINIMIZED:
+			return "SDL_WINDOWEVENT_MINIMIZED";
+		case SDL_WINDOWEVENT_MAXIMIZED:
+			return "SDL_WINDOWEVENT_MAXIMIZED";
+		case SDL_WINDOWEVENT_RESTORED:
+			return "SDL_WINDOWEVENT_RESTORED";
+		case SDL_WINDOWEVENT_ENTER:
+			return "SDL_WINDOWEVENT_ENTER";
+		case SDL_WINDOWEVENT_LEAVE:
+			return "SDL_WINDOWEVENT_LEAVE";
+		case SDL_WINDOWEVENT_FOCUS_GAINED:
+			return "SDL_WINDOWEVENT_FOCUS_GAINED";
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			return "SDL_WINDOWEVENT_FOCUS_LOST";
+		case SDL_WINDOWEVENT_CLOSE:
+			return "SDL_WINDOWEVENT_CLOSE";
+#if SDL_VERSION_ATLEAST(2, 0, 5)
+		case SDL_WINDOWEVENT_TAKE_FOCUS:
+			return "SDL_WINDOWEVENT_TAKE_FOCUS";
+		case SDL_WINDOWEVENT_HIT_TEST:
+			return "SDL_WINDOWEVENT_HIT_TEST";
+#endif
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+		case SDL_WINDOWEVENT_ICCPROF_CHANGED:
+			return "SDL_WINDOWEVENT_ICCPROF_CHANGED";
+		case SDL_WINDOWEVENT_DISPLAY_CHANGED:
+			return "SDL_WINDOWEVENT_DISPLAY_CHANGED";
+#endif
+		default:
+			return "SDL_WINDOWEVENT_UNKNOWN";
+	}
+}
+
+#if defined(CJSON_FOUND)
+using cJSONPtr = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+
+static cJSONPtr get()
+{
+	auto config = sdl_get_pref_file();
+
+	std::ifstream ifs(config);
+	std::string content((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
+	return { cJSON_ParseWithLength(content.c_str(), content.size()), cJSON_Delete };
+}
+
+static cJSON* get_item(const std::string& key)
+{
+	static cJSONPtr config{ nullptr, cJSON_Delete };
+	if (!config)
+		config = get();
+	if (!config)
+		return nullptr;
+	return cJSON_GetObjectItem(config.get(), key.c_str());
+}
+
+static std::string item_to_str(cJSON* item, const std::string& fallback = "")
+{
+	if (!item || !cJSON_IsString(item))
+		return fallback;
+	auto str = cJSON_GetStringValue(item);
+	if (!str)
+		return {};
+	return str;
+}
+#endif
+
+std::string sdl_get_pref_string(const std::string& key, const std::string& fallback)
+{
+#if defined(CJSON_FOUND)
+	auto item = get_item(key);
+	return item_to_str(item, fallback);
+#else
+	return fallback;
+#endif
+}
+
+bool sdl_get_pref_bool(const std::string& key, bool fallback)
+{
+#if defined(CJSON_FOUND)
+	auto item = get_item(key);
+	if (!item || !cJSON_IsBool(item))
+		return fallback;
+	return cJSON_IsTrue(item);
+#else
+	return fallback;
+#endif
+}
+
+int64_t sdl_get_pref_int(const std::string& key, int64_t fallback)
+{
+#if defined(CJSON_FOUND)
+	auto item = get_item(key);
+	if (!item || !cJSON_IsNumber(item))
+		return fallback;
+	auto val = cJSON_GetNumberValue(item);
+	return static_cast<int64_t>(val);
+#else
+	return fallback;
+#endif
+}
+
+std::vector<std::string> sdl_get_pref_array(const std::string& key,
+                                            const std::vector<std::string>& fallback)
+{
+#if defined(CJSON_FOUND)
+	auto item = get_item(key);
+	if (!item || !cJSON_IsArray(item))
+		return fallback;
+
+	std::vector<std::string> values;
+	for (int x = 0; x < cJSON_GetArraySize(item); x++)
+	{
+		auto cur = cJSON_GetArrayItem(item, x);
+		values.push_back(item_to_str(cur));
+	}
+
+	return values;
+#else
+	return fallback;
+#endif
+}
+
+std::string sdl_get_pref_dir()
+{
+	using CStringPtr = std::unique_ptr<char, decltype(&free)>;
+	CStringPtr path(GetKnownPath(KNOWN_PATH_XDG_CONFIG_HOME), free);
+	if (!path)
+		return {};
+
+	fs::path config{ path.get() };
+	config /= FREERDP_VENDOR;
+	config /= FREERDP_PRODUCT;
+	return config.string();
+}
+
+std::string sdl_get_pref_file()
+{
+	fs::path config{ sdl_get_pref_dir() };
+	config /= "sdl-freerdp.json";
+	return config.string();
 }

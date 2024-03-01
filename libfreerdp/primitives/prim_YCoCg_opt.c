@@ -46,7 +46,6 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_invert(const BYTE* WINPR_RESTRICT pSr
 	BYTE* dptr = (BYTE*)pDst;
 	int sRowBump = srcStep - width * sizeof(UINT32);
 	int dRowBump = dstStep - width * sizeof(UINT32);
-	UINT32 h;
 	/* Shift left by "shift" and divide by two is the same as shift
 	 * left by "shift-1".
 	 */
@@ -69,15 +68,15 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_invert(const BYTE* WINPR_RESTRICT pSr
 		                                   shift, withAlpha);
 	}
 
-	for (h = 0; h < height; h++)
+	for (UINT32 h = 0; h < height; h++)
 	{
 		UINT32 w = width;
-		BOOL onStride;
+		BOOL onStride = 0;
 
 		/* Get to a 16-byte destination boundary. */
 		if ((ULONG_PTR)dptr & 0x0f)
 		{
-			pstatus_t status;
+			pstatus_t status = 0;
 			UINT32 startup = (16 - ((ULONG_PTR)dptr & 0x0f)) / 4;
 
 			if (startup > width)
@@ -99,7 +98,14 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_invert(const BYTE* WINPR_RESTRICT pSr
 
 		while (w >= 8)
 		{
-			__m128i R0, R1, R2, R3, R4, R5, R6, R7;
+			__m128i R0;
+			__m128i R1;
+			__m128i R2;
+			__m128i R3;
+			__m128i R4;
+			__m128i R5;
+			__m128i R6;
+			__m128i R7;
 
 			if (onStride)
 			{
@@ -198,7 +204,7 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_invert(const BYTE* WINPR_RESTRICT pSr
 		/* Handle any remainder pixels. */
 		if (w > 0)
 		{
-			pstatus_t status;
+			pstatus_t status = 0;
 			status = generic->YCoCgToRGB_8u_AC4R(sptr, srcStep, dptr, DstFormat, dstStep, w, 1,
 			                                     shift, withAlpha);
 
@@ -226,7 +232,6 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_no_invert(const BYTE* WINPR_RESTRICT 
 	BYTE* dptr = (BYTE*)pDst;
 	int sRowBump = srcStep - width * sizeof(UINT32);
 	int dRowBump = dstStep - width * sizeof(UINT32);
-	UINT32 h;
 	/* Shift left by "shift" and divide by two is the same as shift
 	 * left by "shift-1".
 	 */
@@ -249,15 +254,15 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_no_invert(const BYTE* WINPR_RESTRICT 
 		                                   shift, withAlpha);
 	}
 
-	for (h = 0; h < height; h++)
+	for (UINT32 h = 0; h < height; h++)
 	{
 		int w = width;
-		BOOL onStride;
+		BOOL onStride = 0;
 
 		/* Get to a 16-byte destination boundary. */
 		if ((ULONG_PTR)dptr & 0x0f)
 		{
-			pstatus_t status;
+			pstatus_t status = 0;
 			UINT32 startup = (16 - ((ULONG_PTR)dptr & 0x0f)) / 4;
 
 			if (startup > width)
@@ -279,7 +284,14 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_no_invert(const BYTE* WINPR_RESTRICT 
 
 		while (w >= 8)
 		{
-			__m128i R0, R1, R2, R3, R4, R5, R6, R7;
+			__m128i R0;
+			__m128i R1;
+			__m128i R2;
+			__m128i R3;
+			__m128i R4;
+			__m128i R5;
+			__m128i R6;
+			__m128i R7;
 
 			if (onStride)
 			{
@@ -382,7 +394,7 @@ static pstatus_t ssse3_YCoCgRToRGB_8u_AC4R_no_invert(const BYTE* WINPR_RESTRICT 
 		/* Handle any remainder pixels. */
 		if (w > 0)
 		{
-			pstatus_t status;
+			pstatus_t status = 0;
 			status = generic->YCoCgToRGB_8u_AC4R(sptr, srcStep, dptr, DstFormat, dstStep, w, 1,
 			                                     shift, withAlpha);
 
@@ -432,7 +444,6 @@ static pstatus_t neon_YCoCgToRGB_8u_X(const BYTE* WINPR_RESTRICT pSrc, INT32 src
                                       UINT32 width, UINT32 height, UINT8 shift, BYTE bPos,
                                       BYTE gPos, BYTE rPos, BYTE aPos, BOOL alpha)
 {
-	UINT32 y;
 	BYTE* dptr = pDst;
 	const BYTE* sptr = pSrc;
 	const DWORD formatSize = FreeRDPGetBytesPerPixel(DstFormat);
@@ -443,11 +454,9 @@ static pstatus_t neon_YCoCgToRGB_8u_X(const BYTE* WINPR_RESTRICT pSrc, INT32 src
 	const uint8x8_t aVal = vdup_n_u8(0xFF);
 	const int8x8_t cllv = vdup_n_s8(cll);
 
-	for (y = 0; y < height; y++)
+	for (UINT32 y = 0; y < height; y++)
 	{
-		UINT32 x;
-
-		for (x = 0; x < width - pad; x += 8)
+		for (UINT32 x = 0; x < width - pad; x += 8)
 		{
 			/* Note: shifts must be done before sign-conversion. */
 			const uint8x8x4_t raw = vld4_u8(sptr);
@@ -475,7 +484,7 @@ static pstatus_t neon_YCoCgToRGB_8u_X(const BYTE* WINPR_RESTRICT pSrc, INT32 src
 			dptr += sizeof(bgrx);
 		}
 
-		for (x = 0; x < pad; x++)
+		for (UINT32 x = 0; x < pad; x++)
 		{
 			/* Note: shifts must be done before sign-conversion. */
 			const INT16 Cg = (INT16)((INT8)((*sptr++) << cll));

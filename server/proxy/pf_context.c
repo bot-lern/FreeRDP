@@ -103,7 +103,7 @@ static void HashStaticChannelContext_free(void* ptr)
 static void client_to_proxy_context_free(freerdp_peer* client, rdpContext* ctx);
 static BOOL client_to_proxy_context_new(freerdp_peer* client, rdpContext* ctx)
 {
-	wObject* obj;
+	wObject* obj = NULL;
 	pServerContext* context = (pServerContext*)ctx;
 
 	WINPR_ASSERT(client);
@@ -195,16 +195,15 @@ BOOL pf_context_init_server_context(freerdp_peer* client)
 }
 
 static BOOL pf_context_revert_str_settings(rdpSettings* dst, const rdpSettings* before, size_t nr,
-                                           const size_t* ids)
+                                           const FreeRDP_Settings_Keys_String* ids)
 {
-	size_t x;
 	WINPR_ASSERT(dst);
 	WINPR_ASSERT(before);
 	WINPR_ASSERT(ids || (nr == 0));
 
-	for (x = 0; x < nr; x++)
+	for (size_t x = 0; x < nr; x++)
 	{
-		size_t id = ids[x];
+		FreeRDP_Settings_Keys_String id = ids[x];
 		const char* what = freerdp_settings_get_string(before, id);
 		if (!freerdp_settings_set_string(dst, id, what))
 			return FALSE;
@@ -226,8 +225,9 @@ void intercept_context_entry_free(void* obj)
 BOOL pf_context_copy_settings(rdpSettings* dst, const rdpSettings* src)
 {
 	BOOL rc = FALSE;
-	rdpSettings* before_copy;
-	const size_t to_revert[] = { FreeRDP_ConfigPath, FreeRDP_CertificateName };
+	rdpSettings* before_copy = NULL;
+	const FreeRDP_Settings_Keys_String to_revert[] = { FreeRDP_ConfigPath,
+		                                               FreeRDP_CertificateName };
 
 	if (!dst || !src)
 		return FALSE;
@@ -237,22 +237,21 @@ BOOL pf_context_copy_settings(rdpSettings* dst, const rdpSettings* src)
 		return FALSE;
 
 	if (!freerdp_settings_copy(dst, src))
-	{
-		freerdp_settings_free(before_copy);
-		return FALSE;
-	}
+		goto out_fail;
 
 	/* keep original ServerMode value */
-	dst->ServerMode = before_copy->ServerMode;
+	if (!freerdp_settings_copy_item(dst, before_copy, FreeRDP_ServerMode))
+		goto out_fail;
 
 	/* revert some values that must not be changed */
 	if (!pf_context_revert_str_settings(dst, before_copy, ARRAYSIZE(to_revert), to_revert))
-		return FALSE;
+		goto out_fail;
 
-	if (!dst->ServerMode)
+	if (!freerdp_settings_get_bool(dst, FreeRDP_ServerMode))
 	{
 		/* adjust instance pointer */
-		dst->instance = before_copy->instance;
+		if (!freerdp_settings_copy_item(dst, before_copy, FreeRDP_instance))
+			goto out_fail;
 
 		/*
 		 * RdpServerRsaKey must be set to NULL if `dst` is client's context
@@ -274,8 +273,8 @@ out_fail:
 pClientContext* pf_context_create_client_context(const rdpSettings* clientSettings)
 {
 	RDP_CLIENT_ENTRY_POINTS clientEntryPoints;
-	pClientContext* pc;
-	rdpContext* context;
+	pClientContext* pc = NULL;
+	rdpContext* context = NULL;
 
 	WINPR_ASSERT(clientSettings);
 
@@ -299,8 +298,8 @@ error:
 proxyData* proxy_data_new(void)
 {
 	BYTE temp[16];
-	char* hex;
-	proxyData* pdata;
+	char* hex = NULL;
+	proxyData* pdata = NULL;
 
 	pdata = calloc(1, sizeof(proxyData));
 	if (!pdata)
@@ -330,7 +329,10 @@ proxyData* proxy_data_new(void)
 
 	return pdata;
 error:
+	WINPR_PRAGMA_DIAG_PUSH
+	WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC
 	proxy_data_free(pdata);
+	WINPR_PRAGMA_DIAG_POP
 	return NULL;
 }
 

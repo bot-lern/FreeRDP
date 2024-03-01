@@ -9,7 +9,6 @@
 #include <winpr/windows.h>
 
 static const CHAR testFile1A[] = "TestFile1A";
-static const WCHAR testFile1W[] = { 'T', 'e', 's', 't', 'F', 'i', 'l', 'e', '1', 'W', '\0' };
 
 static BOOL create_layout_files(size_t level, const char* BasePath, wArrayList* files)
 {
@@ -190,12 +189,6 @@ static BOOL find_first_file_fail(const char* FilePath)
 	return FALSE;
 }
 
-static void* string_dup(const void* val)
-{
-	const char* str = (const char*)val;
-	return _strdup(str);
-}
-
 static int TestFileFindFirstFileA(const char* str)
 {
 	int rc = -1;
@@ -217,8 +210,8 @@ static int TestFileFindFirstFileA(const char* str)
 	if (!files)
 		return -3;
 	wObject* obj = ArrayList_Object(files);
-	obj->fnObjectFree = free;
-	obj->fnObjectNew = string_dup;
+	obj->fnObjectFree = winpr_ObjectStringFree;
+	obj->fnObjectNew = winpr_ObjectStringClone;
 
 	if (!create_layout(BasePath, files))
 		return -1;
@@ -262,6 +255,8 @@ fail:
 
 static int TestFileFindFirstFileW(const char* str)
 {
+	WCHAR buffer[32] = { 0 };
+	const WCHAR* testFile1W = InitializeConstWCharFromUtf8("TestFile1W", buffer, ARRAYSIZE(buffer));
 	int rc = -1;
 	if (!str)
 		return -1;

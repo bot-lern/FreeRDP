@@ -50,10 +50,13 @@ static pstatus_t sse2_alphaComp_argb(const BYTE* WINPR_RESTRICT pSrc1, UINT32 sr
 {
 	const UINT32* sptr1 = (const UINT32*)pSrc1;
 	const UINT32* sptr2 = (const UINT32*)pSrc2;
-	UINT32* dptr;
-	int linebytes, src1Jump, src2Jump, dstJump;
-	UINT32 y;
-	__m128i xmm0, xmm1;
+	UINT32* dptr = NULL;
+	int linebytes = 0;
+	int src1Jump = 0;
+	int src2Jump = 0;
+	int dstJump = 0;
+	__m128i xmm0;
+	__m128i xmm1;
 
 	if ((width <= 0) || (height <= 0))
 		return PRIMITIVES_SUCCESS;
@@ -72,10 +75,10 @@ static pstatus_t sse2_alphaComp_argb(const BYTE* WINPR_RESTRICT pSrc1, UINT32 sr
 	xmm0 = _mm_set1_epi32(0);
 	xmm1 = _mm_set1_epi16(1);
 
-	for (y = 0; y < height; ++y)
+	for (UINT32 y = 0; y < height; ++y)
 	{
 		int pixels = width;
-		int count;
+		int count = 0;
 		/* Get to the 16-byte boundary now. */
 		int leadIn = 0;
 
@@ -107,7 +110,7 @@ static pstatus_t sse2_alphaComp_argb(const BYTE* WINPR_RESTRICT pSrc1, UINT32 sr
 
 		if (leadIn)
 		{
-			pstatus_t status;
+			pstatus_t status = 0;
 			status = generic->alphaComp_argb((const BYTE*)sptr1, src1Step, (const BYTE*)sptr2,
 			                                 src2Step, (BYTE*)dptr, dstStep, leadIn, 1);
 			if (status != PRIMITIVES_SUCCESS)
@@ -125,7 +128,12 @@ static pstatus_t sse2_alphaComp_argb(const BYTE* WINPR_RESTRICT pSrc1, UINT32 sr
 
 		while (count--)
 		{
-			__m128i xmm2, xmm3, xmm4, xmm5, xmm6, xmm7;
+			__m128i xmm2;
+			__m128i xmm3;
+			__m128i xmm4;
+			__m128i xmm5;
+			__m128i xmm6;
+			__m128i xmm7;
 			/* BdGdRdAdBcGcRcAcBbGbRbAbBaGaRaAa */
 			xmm2 = LOAD_SI128(sptr1);
 			sptr1 += 4;
@@ -183,7 +191,7 @@ static pstatus_t sse2_alphaComp_argb(const BYTE* WINPR_RESTRICT pSrc1, UINT32 sr
 		/* Finish off the remainder. */
 		if (pixels)
 		{
-			pstatus_t status;
+			pstatus_t status = 0;
 			status = generic->alphaComp_argb((const BYTE*)sptr1, src1Step, (const BYTE*)sptr2,
 			                                 src2Step, (BYTE*)dptr, dstStep, pixels, 1);
 			if (status != PRIMITIVES_SUCCESS)

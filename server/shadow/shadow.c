@@ -56,6 +56,8 @@ int main(int argc, char** argv)
 		  "Select rectangle within monitor to share" },
 		{ "auth", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL,
 		  "Clients must authenticate" },
+		{ "remote-guard", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL,
+		  "Remote credential guard" },
 		{ "may-view", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueTrue, NULL, -1, NULL,
 		  "Clients may view without prompt" },
 		{ "may-interact", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueTrue, NULL, -1, NULL,
@@ -127,6 +129,11 @@ int main(int argc, char** argv)
 	    !freerdp_settings_set_bool(settings, FreeRDP_GfxAVC444v2, TRUE) ||
 	    !freerdp_settings_set_bool(settings, FreeRDP_GfxProgressive, TRUE) ||
 	    !freerdp_settings_set_bool(settings, FreeRDP_GfxProgressiveV2, TRUE))
+		goto fail;
+
+	/* TODO: We do not implement relative mouse callbacks, so deactivate it for now */
+	if (!freerdp_settings_set_bool(settings, FreeRDP_MouseUseRelativeMove, FALSE) ||
+	    !freerdp_settings_set_bool(settings, FreeRDP_HasRelativeMouseEvent, FALSE))
 		goto fail;
 
 	if ((status = shadow_server_parse_command_line(server, argc, argv, shadow_args)) < 0)

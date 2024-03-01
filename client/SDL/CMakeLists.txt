@@ -17,52 +17,33 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-project(sdl-client CXX)
+if(POLICY CMP0091)
+	cmake_policy(SET CMP0091 NEW)
+endif()
+if (NOT FREERDP_DEFAULT_PROJECT_VERSION)
+	set(FREERDP_DEFAULT_PROJECT_VERSION "1.0.0.0")
+endif()
+
+project(sdl-freerdp
+	LANGUAGES CXX
+	VERSION ${FREERDP_DEFAULT_PROJECT_VERSION}
+)
+
+message("project ${PROJECT_NAME} is using version ${PROJECT_VERSION}")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
-option(CMAKE_COLOR_MAKEFILE "colorful CMake makefile" ON)
-option(CMAKE_VERBOSE_MAKEFILE "verbose CMake makefile" ON)
-option(CMAKE_POSITION_INDEPENDENT_CODE "build with position independent code (-fPIC or -fPIE)" ON)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/)
+include(CommonConfigOptions)
 
 include(ConfigureFreeRDP)
 
-include(GNUInstallDirsWrapper)
-
-# RPATH configuration
-include(ConfigureRPATH)
-
-option(WITH_DEBUG_SDL_EVENTS "[dangerous, not for release builds!] Debug SDL events" OFF)
-option(WITH_DEBUG_SDL_KBD_EVENTS "[dangerous, not for release builds!] Debug SDL keyboard events" OFF)
+option(WITH_DEBUG_SDL_EVENTS "[dangerous, not for release builds!] Debug SDL events" ${DEFAULT_DEBUG_OPTION})
+option(WITH_DEBUG_SDL_KBD_EVENTS "[dangerous, not for release builds!] Debug SDL keyboard events" ${DEFAULT_DEBUG_OPTION})
 option(WITH_WIN_CONSOLE "Build ${PROJECT_NAME} with console support" ON)
-
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "project default" FORCE)
-endif()
-
-# Configure MSVC Runtime
-if(MSVC)
-	include(MSVCRuntime)
-	if(NOT DEFINED MSVC_RUNTIME)
-		set(MSVC_RUNTIME "dynamic" CACHE STRING "MSVC runtime type [dynamic|static]")
-	endif()
-	if(MSVC_RUNTIME STREQUAL "static")
-		if(BUILD_SHARED_LIBS)
-			message(FATAL_ERROR "Static CRT is only supported in a fully static build")
-		endif()
-		message(STATUS "Use the MSVC static runtime option carefully!")
-		message(STATUS "OpenSSL uses /MD by default, and is very picky")
-		message(STATUS "Random freeing errors are a common sign of runtime issues")
-	endif()
-	configure_msvc_runtime()
-
-	if(NOT DEFINED CMAKE_SUPPRESS_REGENERATION)
-		set(CMAKE_SUPPRESS_REGENERATION ON)
-	endif()
-endif()
+option(WITH_SDL_LINK_SHARED "link SDL dynamic or static" ON)
 
 if(WITH_WIN_CONSOLE)
   set(WIN32_GUI_FLAG "")
@@ -81,6 +62,14 @@ endif()
 find_package(SDL2 REQUIRED COMPONENTS)
 include_directories(${SDL2_INCLUDE_DIR})
 include_directories(${SDL2_INCLUDE_DIRS})
+find_package(cJSON)
+
+set(LIBS "")
+if (cJSON_FOUND)
+    include_directories(${CJSON_INCLUDE_DIRS})
+    list(APPEND LIBS ${CJSON_LIBRARIES})
+    add_compile_definitions(CJSON_FOUND)
+endif()
 
 find_package(Threads REQUIRED)
 
@@ -102,28 +91,38 @@ set(SRCS
     sdl_freerdp.hpp
     sdl_freerdp.cpp
     sdl_channels.hpp
-    sdl_channels.cpp)
+    sdl_channels.cpp
+    sdl_window.hpp
+    sdl_window.cpp
+)
 
 add_subdirectory(aad)
-set(LIBS
-	${SDL2_LIBRARIES}
+list(APPEND LIBS
         winpr
         freerdp
         freerdp-client
         Threads::Threads
+        sdl_client_res
         dialogs
-				aad-view
+        aad-view
     )
+
+if (NOT WITH_SDL_LINK_SHARED)
+    list(APPEND LIBS ${SDL2_STATIC_LIBRARIES})
+else()
+    list(APPEND LIBS ${SDL2_LIBRARIES})
+endif()
 
 add_executable(${PROJECT_NAME}
 	${WIN32_GUI_FLAG}
 	${SRCS}
     )
 
-set_target_properties(${PROJECT_NAME}
-    PROPERTIES
-    OUTPUT_NAME "sdl-freerdp"
-    )
+if (WITH_BINARY_VERSIONING)
+	set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}${PROJECT_VERSION_MAJOR}")
+endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBS})
 set_property(TARGET ${PROJECT_NAME} PROPERTY FOLDER "Client/SDL")
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT client)
+
+add_subdirectory(man)

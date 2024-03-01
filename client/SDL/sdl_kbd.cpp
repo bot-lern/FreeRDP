@@ -22,6 +22,8 @@
 #include "sdl_freerdp.hpp"
 #include "sdl_utils.hpp"
 
+#include <map>
+
 #include <freerdp/scancode.h>
 
 #include <freerdp/log.h>
@@ -376,40 +378,93 @@ BOOL sdlInput::keyboard_set_ime_status(rdpContext* context, UINT16 imeId, UINT32
 	return TRUE;
 }
 
+uint32_t sdlInput::prefToMask()
+{
+	const std::map<std::string, uint32_t> mapping = {
+		{ "KMOD_LSHIFT", KMOD_LSHIFT },
+		{ "KMOD_RSHIFT", KMOD_RSHIFT },
+		{ "KMOD_LCTRL", KMOD_LCTRL },
+		{ "KMOD_RCTRL", KMOD_RCTRL },
+		{ "KMOD_LALT", KMOD_LALT },
+		{ "KMOD_RALT", KMOD_RALT },
+		{ "KMOD_LGUI", KMOD_LGUI },
+		{ "KMOD_RGUI", KMOD_RGUI },
+		{ "KMOD_NUM", KMOD_NUM },
+		{ "KMOD_CAPS", KMOD_CAPS },
+		{ "KMOD_MODE", KMOD_MODE },
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+		{ "KMOD_SCROLL", KMOD_SCROLL },
+#endif
+		{ "KMOD_CTRL", KMOD_CTRL },
+		{ "KMOD_SHIFT", KMOD_SHIFT },
+		{ "KMOD_ALT", KMOD_ALT },
+		{ "KMOD_GUI", KMOD_GUI }
+	};
+	uint32_t mod = KMOD_NONE;
+	for (const auto& val : sdl_get_pref_array("SDL_KeyModMask", { "KMOD_RSHIFT" }))
+	{
+		auto it = mapping.find(val);
+		if (it != mapping.end())
+		{
+			mod |= it->second;
+		}
+	}
+	return mod;
+}
+
 static const char* sdl_scancode_name(Uint32 scancode)
 {
-	for (size_t x = 0; x < ARRAYSIZE(map); x++)
+	for (const auto& cur : map)
 	{
-		const scancode_entry_t* cur = &map[x];
-		if (cur->sdl == scancode)
-			return cur->sdl_name;
+		if (cur.sdl == scancode)
+			return cur.sdl_name;
 	}
 
 	return "SDL_SCANCODE_UNKNOWN";
 }
 
+static Uint32 sdl_scancode_val(const char* scancodeName)
+{
+	for (const auto& cur : map)
+	{
+		if (strcmp(cur.sdl_name, scancodeName) == 0)
+			return cur.sdl;
+	}
+
+	return SDL_SCANCODE_UNKNOWN;
+}
+
 static const char* sdl_rdp_scancode_name(UINT32 scancode)
 {
-	for (size_t x = 0; x < ARRAYSIZE(map); x++)
+	for (const auto& cur : map)
 	{
-		const scancode_entry_t* cur = &map[x];
-		if (cur->rdp == scancode)
-			return cur->rdp_name;
+		if (cur.rdp == scancode)
+			return cur.rdp_name;
 	}
 
 	return "RDP_SCANCODE_UNKNOWN";
+}
+
+static UINT32 sdl_rdp_scancode_val(const char* scancodeName)
+{
+	for (const auto& cur : map)
+	{
+		if (strcmp(cur.rdp_name, scancodeName) == 0)
+			return cur.rdp;
+	}
+
+	return RDP_SCANCODE_UNKNOWN;
 }
 
 static UINT32 sdl_scancode_to_rdp(Uint32 scancode)
 {
 	UINT32 rdp = RDP_SCANCODE_UNKNOWN;
 
-	for (size_t x = 0; x < ARRAYSIZE(map); x++)
+	for (const auto& cur : map)
 	{
-		const scancode_entry_t* cur = &map[x];
-		if (cur->sdl == scancode)
+		if (cur.sdl == scancode)
 		{
-			rdp = cur->rdp;
+			rdp = cur.rdp;
 			break;
 		}
 	}
@@ -422,32 +477,52 @@ static UINT32 sdl_scancode_to_rdp(Uint32 scancode)
 	return rdp;
 }
 
+uint32_t sdlInput::prefKeyValue(const std::string& key, uint32_t fallback)
+{
+	auto item = sdl_get_pref_string(key);
+	if (item.empty())
+		return fallback;
+	auto val = sdl_scancode_val(item.c_str());
+	if (val == SDL_SCANCODE_UNKNOWN)
+		return fallback;
+	return val;
+}
+
 BOOL sdlInput::keyboard_handle_event(const SDL_KeyboardEvent* ev)
 {
 	WINPR_ASSERT(ev);
 	const UINT32 rdp_scancode = sdl_scancode_to_rdp(ev->keysym.scancode);
 	const SDL_Keymod mods = SDL_GetModState();
-	const SDL_Keymod mask = KMOD_RSHIFT;
+	const auto mask = prefToMask();
+	const auto valFullscreen = prefKeyValue("SDL_Fullscreen", SDL_SCANCODE_RETURN);
+	const auto valResizeable = prefKeyValue("SDL_Resizeable", SDL_SCANCODE_R);
+	const auto valGrab = prefKeyValue("SDL_Grab", SDL_SCANCODE_G);
+	const auto valDisconnect = prefKeyValue("SDL_Disconnect", SDL_SCANCODE_D);
+
 	if ((mods & mask) == mask)
 	{
 		if (ev->type == SDL_KEYDOWN)
 		{
-			switch (ev->keysym.scancode)
+			if (ev->keysym.scancode == valFullscreen)
 			{
-				case SDL_SCANCODE_RETURN:
-					_sdl->update_fullscreen(!_sdl->fullscreen);
-					return TRUE;
-				case SDL_SCANCODE_R:
-					_sdl->update_resizeable(!_sdl->resizeable);
-					return TRUE;
-				case SDL_SCANCODE_G:
-					keyboard_grab(ev->windowID, _sdl->grab_kbd ? SDL_FALSE : SDL_TRUE);
-					return TRUE;
-				case SDL_SCANCODE_D:
-					freerdp_abort_connect_context(_sdl->context());
-					return true;
-				default:
-					break;
+				_sdl->update_fullscreen(!_sdl->fullscreen);
+				return TRUE;
+			}
+			if (ev->keysym.scancode == valResizeable)
+			{
+				_sdl->update_resizeable(!_sdl->resizeable);
+				return TRUE;
+			}
+
+			if (ev->keysym.scancode == valGrab)
+			{
+				keyboard_grab(ev->windowID, _sdl->grab_kbd ? SDL_FALSE : SDL_TRUE);
+				return TRUE;
+			}
+			if (ev->keysym.scancode == valDisconnect)
+			{
+				freerdp_abort_connect_context(_sdl->context());
+				return TRUE;
 			}
 		}
 	}
@@ -457,17 +532,11 @@ BOOL sdlInput::keyboard_handle_event(const SDL_KeyboardEvent* ev)
 
 BOOL sdlInput::keyboard_grab(Uint32 windowID, SDL_bool enable)
 {
-	SDL_Window* window = SDL_GetWindowFromID(windowID);
-	if (!window)
+	auto it = _sdl->windows.find(windowID);
+	if (it == _sdl->windows.end())
 		return FALSE;
-#if SDL_VERSION_ATLEAST(2, 0, 16)
 	_sdl->grab_kbd = enable;
-	SDL_SetWindowKeyboardGrab(window, enable);
-	return TRUE;
-#else
-	WLog_WARN(TAG, "Keyboard grabbing not supported by SDL2 < 2.0.16");
-	return FALSE;
-#endif
+	return it->second.grabKeyboard(enable);
 }
 
 BOOL sdlInput::mouse_focus(Uint32 windowID)
@@ -475,36 +544,25 @@ BOOL sdlInput::mouse_focus(Uint32 windowID)
 	if (_lastWindowID != windowID)
 	{
 		_lastWindowID = windowID;
-		SDL_Window* window = SDL_GetWindowFromID(windowID);
-		if (!window)
+		auto it = _sdl->windows.find(windowID);
+		if (it == _sdl->windows.end())
 			return FALSE;
 
-		SDL_RaiseWindow(window);
+		it->second.raise();
 	}
 	return TRUE;
 }
 
 BOOL sdlInput::mouse_grab(Uint32 windowID, SDL_bool enable)
 {
-	SDL_Window* window = SDL_GetWindowFromID(windowID);
-	if (!window)
+	auto it = _sdl->windows.find(windowID);
+	if (it == _sdl->windows.end())
 		return FALSE;
-#if SDL_VERSION_ATLEAST(2, 0, 16)
 	_sdl->grab_mouse = enable;
-	SDL_SetWindowMouseGrab(window, enable);
-	return TRUE;
-#else
-	_sdl->grab_mouse = enable;
-	SDL_SetWindowGrab(window, enable);
-	return TRUE;
-#endif
+	return it->second.grabMouse(enable);
 }
 
 sdlInput::sdlInput(SdlContext* sdl) : _sdl(sdl), _lastWindowID(UINT32_MAX)
 {
 	WINPR_ASSERT(_sdl);
-}
-
-sdlInput::~sdlInput()
-{
 }

@@ -29,12 +29,11 @@ static const char base64url[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu
 static char* base64_encode_ex(const char* alphabet, const BYTE* data, size_t length, BOOL pad,
                               BOOL crLf, size_t lineSize)
 {
-	int c;
-	const BYTE* q;
-	char* p;
-	char* ret;
-	int i = 0;
-	int blocks;
+	int c = 0;
+	const BYTE* q = NULL;
+	char* p = NULL;
+	char* ret = NULL;
+	int blocks = 0;
 	size_t outLen = (length + 3) * 4 / 3;
 	size_t extra = 0;
 	if (crLf)
@@ -63,7 +62,7 @@ static char* base64_encode_ex(const char* alphabet, const BYTE* data, size_t len
 
 	/* first treat complete blocks */
 	blocks = length - (length % 3);
-	for (i = 0; i < blocks; i += 3, q += 3)
+	for (int i = 0; i < blocks; i += 3, q += 3)
 	{
 		c = (q[0] << 16) + (q[1] << 8) + q[2];
 
@@ -137,9 +136,10 @@ static void* base64_decode(const char* alphabet, const char* s, size_t length, s
                            BOOL pad)
 {
 	int n[4];
-	BYTE* q;
-	BYTE* data;
-	size_t nBlocks, i, outputLen;
+	BYTE* q = NULL;
+	BYTE* data = NULL;
+	size_t nBlocks = 0;
+	size_t outputLen = 0;
 	int remainder = length % 4;
 
 	if ((pad && remainder > 0) || (remainder == 1))
@@ -162,7 +162,7 @@ static void* base64_decode(const char* alphabet, const char* s, size_t length, s
 		return NULL;
 	}
 
-	for (i = 0; i < nBlocks - 1; i++, q += 3)
+	for (size_t i = 0; i < nBlocks - 1; i++, q += 3)
 	{
 		n[0] = base64_decode_char(alphabet, *s++);
 		n[1] = base64_decode_char(alphabet, *s++);

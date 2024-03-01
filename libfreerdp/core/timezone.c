@@ -23,6 +23,7 @@
 #include <winpr/assert.h>
 #include <winpr/timezone.h>
 
+#include "settings.h"
 #include "timezone.h"
 
 #include <freerdp/log.h>

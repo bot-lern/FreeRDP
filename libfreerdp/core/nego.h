@@ -106,14 +106,19 @@ FREERDP_LOCAL BOOL nego_read_request(rdpNego* nego, wStream* s);
 FREERDP_LOCAL BOOL nego_send_negotiation_request(rdpNego* nego);
 FREERDP_LOCAL BOOL nego_send_negotiation_response(rdpNego* nego);
 
-FREERDP_LOCAL rdpNego* nego_new(rdpTransport* transport);
 FREERDP_LOCAL void nego_free(rdpNego* nego);
+
+WINPR_ATTR_MALLOC(nego_free, 1)
+FREERDP_LOCAL rdpNego* nego_new(rdpTransport* transport);
 
 FREERDP_LOCAL void nego_init(rdpNego* nego);
 FREERDP_LOCAL BOOL nego_set_target(rdpNego* nego, const char* hostname, UINT16 port);
 FREERDP_LOCAL void nego_set_negotiation_enabled(rdpNego* nego, BOOL NegotiateSecurityLayer);
 FREERDP_LOCAL void nego_set_restricted_admin_mode_required(rdpNego* nego,
                                                            BOOL RestrictedAdminModeRequired);
+FREERDP_LOCAL void nego_set_RCG_required(rdpNego* nego, BOOL enabled);
+FREERDP_LOCAL void nego_set_RCG_supported(rdpNego* nego, BOOL enabled);
+FREERDP_LOCAL BOOL nego_get_remoteCredentialGuard(rdpNego* nego);
 FREERDP_LOCAL void nego_set_childsession_enabled(rdpNego* nego, BOOL ChildSessionEnabled);
 FREERDP_LOCAL void nego_set_gateway_enabled(rdpNego* nego, BOOL GatewayEnabled);
 FREERDP_LOCAL void nego_set_gateway_bypass_local(rdpNego* nego, BOOL GatewayBypassLocal);
@@ -137,6 +142,8 @@ FREERDP_LOCAL BOOL nego_set_selected_protocol(rdpNego* nego, UINT32 SelectedProt
 
 FREERDP_LOCAL UINT32 nego_get_requested_protocols(rdpNego* nego);
 FREERDP_LOCAL BOOL nego_set_requested_protocols(rdpNego* nego, UINT32 RequestedProtocols);
+
+FREERDP_LOCAL BOOL nego_update_settings_from_state(rdpNego* nego, rdpSettings* settings);
 
 FREERDP_LOCAL BOOL nego_set_state(rdpNego* nego, NEGO_STATE state);
 FREERDP_LOCAL NEGO_STATE nego_get_state(rdpNego* nego);

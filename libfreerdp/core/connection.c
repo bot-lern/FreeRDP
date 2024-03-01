@@ -23,6 +23,8 @@
 
 #include <freerdp/config.h>
 
+#include "settings.h"
+
 #include "info.h"
 #include "input.h"
 #include "rdp.h"
@@ -196,7 +198,7 @@ static BOOL rdp_set_state(rdpRdp* rdp, CONNECTION_STATE state);
 
 static BOOL rdp_client_reset_codecs(rdpContext* context)
 {
-	rdpSettings* settings;
+	rdpSettings* settings = NULL;
 
 	if (!context || !context->settings)
 		return FALSE;
@@ -295,9 +297,9 @@ static BOOL rdp_client_wait_for_activation(rdpRdp* rdp)
 
 BOOL rdp_client_connect(rdpRdp* rdp)
 {
-	UINT32 SelectedProtocol;
-	BOOL status;
-	rdpSettings* settings;
+	UINT32 SelectedProtocol = 0;
+	BOOL status = 0;
+	rdpSettings* settings = NULL;
 	/* make sure SSL is initialize for earlier enough for crypto, by taking advantage of winpr SSL
 	 * FIPS flag for openssl initialization */
 	DWORD flags = WINPR_SSL_INIT_DEFAULT;
@@ -471,7 +473,7 @@ BOOL rdp_client_connect(rdpRdp* rdp)
 
 BOOL rdp_client_disconnect(rdpRdp* rdp)
 {
-	rdpContext* context;
+	rdpContext* context = NULL;
 
 	if (!rdp || !rdp->settings || !rdp->context)
 		return FALSE;
@@ -500,7 +502,7 @@ BOOL rdp_client_disconnect(rdpRdp* rdp)
 
 BOOL rdp_client_disconnect_and_clear(rdpRdp* rdp)
 {
-	rdpContext* context;
+	rdpContext* context = NULL;
 
 	if (!rdp_client_disconnect(rdp))
 		return FALSE;
@@ -521,7 +523,7 @@ BOOL rdp_client_disconnect_and_clear(rdpRdp* rdp)
 static BOOL rdp_client_reconnect_channels(rdpRdp* rdp, BOOL redirect)
 {
 	BOOL status = FALSE;
-	rdpContext* context;
+	rdpContext* context = NULL;
 
 	if (!rdp || !rdp->context || !rdp->context->channels)
 		return FALSE;
@@ -614,8 +616,8 @@ static BOOL rdp_client_redirect_try_netbios(rdpSettings* settings)
 
 BOOL rdp_client_redirect(rdpRdp* rdp)
 {
-	BOOL status;
-	rdpSettings* settings;
+	BOOL status = 0;
+	rdpSettings* settings = NULL;
 
 	if (!rdp_client_disconnect_and_clear(rdp))
 		return FALSE;
@@ -700,7 +702,7 @@ BOOL rdp_client_redirect(rdpRdp* rdp)
 
 BOOL rdp_client_reconnect(rdpRdp* rdp)
 {
-	BOOL status;
+	BOOL status = 0;
 
 	if (!rdp_client_disconnect_and_clear(rdp))
 		return FALSE;
@@ -1021,8 +1023,7 @@ static BOOL rdp_client_join_channel(rdpRdp* rdp, UINT16 ChannelId)
 
 BOOL rdp_client_connect_mcs_channel_join_confirm(rdpRdp* rdp, wStream* s)
 {
-	UINT32 i;
-	UINT16 channelId;
+	UINT16 channelId = 0;
 	BOOL allJoined = TRUE;
 
 	WINPR_ASSERT(rdp);
@@ -1092,7 +1093,8 @@ BOOL rdp_client_connect_mcs_channel_join_confirm(rdpRdp* rdp, wStream* s)
 	}
 	else
 	{
-		for (i = 0; i < mcs->channelCount; i++)
+		UINT32 i = 0;
+		for (; i < mcs->channelCount; i++)
 		{
 			rdpMcsChannel* cur = &mcs->channels[i];
 			if (cur->joined)
@@ -1174,8 +1176,10 @@ BOOL rdp_client_connect_auto_detect(rdpRdp* rdp, wStream* s)
 state_run_t rdp_client_connect_license(rdpRdp* rdp, wStream* s)
 {
 	state_run_t status = STATE_RUN_FAILED;
-	LICENSE_STATE state;
-	UINT16 length, channelId, securityFlags;
+	LICENSE_STATE state = LICENSE_STATE_ABORTED;
+	UINT16 length = 0;
+	UINT16 channelId = 0;
+	UINT16 securityFlags = 0;
 
 	WINPR_ASSERT(rdp);
 	if (!rdp_read_header(rdp, s, &length, &channelId))
@@ -1245,36 +1249,33 @@ state_run_t rdp_client_connect_license(rdpRdp* rdp, wStream* s)
 
 state_run_t rdp_client_connect_demand_active(rdpRdp* rdp, wStream* s)
 {
-	size_t pos;
-	UINT16 length;
+	UINT16 length = 0;
+	UINT16 channelId = 0;
+	UINT16 pduType = 0;
+	UINT16 pduSource = 0;
 
 	WINPR_ASSERT(rdp);
 	WINPR_ASSERT(s);
 	WINPR_ASSERT(rdp->settings);
 
-	pos = Stream_GetPosition(s);
+	if (!rdp_recv_get_active_header(rdp, s, &channelId, &length))
+		return STATE_RUN_FAILED;
 
-	if (!rdp_recv_demand_active(rdp, s))
+	if (freerdp_shall_disconnect_context(rdp->context))
+		return STATE_RUN_QUIT_SESSION;
+
+	if (!rdp_read_share_control_header(rdp, s, NULL, NULL, &pduType, &pduSource))
+		return STATE_RUN_FAILED;
+
+	switch (pduType)
 	{
-		state_run_t rc;
-		UINT16 channelId;
-
-		Stream_SetPosition(s, pos);
-		if (!rdp_recv_get_active_header(rdp, s, &channelId, &length))
-			return STATE_RUN_FAILED;
-		/* Was Stream_Seek(s, RDP_PACKET_HEADER_MAX_LENGTH);
-		 * but the headers aren't always that length,
-		 * so that could result in a bad offset.
-		 */
-		rc = rdp_recv_out_of_sequence_pdu(rdp, s);
-		if (state_run_failed(rc))
-			return rc;
-		if (!tpkt_ensure_stream_consumed(s, length))
-			return STATE_RUN_FAILED;
-		return rc;
+		case PDU_TYPE_DEMAND_ACTIVE:
+			if (!rdp_recv_demand_active(rdp, s, pduSource, length))
+				return STATE_RUN_FAILED;
+			return STATE_RUN_ACTIVE;
+		default:
+			return rdp_recv_out_of_sequence_pdu(rdp, s, pduType, length);
 	}
-
-	return STATE_RUN_SUCCESS;
 }
 
 state_run_t rdp_client_connect_finalize(rdpRdp* rdp)
@@ -1379,10 +1380,10 @@ BOOL rdp_client_transition_to_state(rdpRdp* rdp, CONNECTION_STATE state)
 BOOL rdp_server_accept_nego(rdpRdp* rdp, wStream* s)
 {
 	UINT32 SelectedProtocol = 0;
-	UINT32 RequestedProtocols;
-	BOOL status;
-	rdpSettings* settings;
-	rdpNego* nego;
+	UINT32 RequestedProtocols = 0;
+	BOOL status = 0;
+	rdpSettings* settings = NULL;
+	rdpNego* nego = NULL;
 
 	WINPR_ASSERT(rdp);
 	WINPR_ASSERT(s);
@@ -1490,6 +1491,154 @@ BOOL rdp_server_accept_nego(rdpRdp* rdp, wStream* s)
 	return TRUE;
 }
 
+static BOOL rdp_update_encryption_level(rdpSettings* settings)
+{
+	WINPR_ASSERT(settings);
+
+	UINT32 EncryptionLevel = freerdp_settings_get_uint32(settings, FreeRDP_EncryptionLevel);
+	UINT32 EncryptionMethods = freerdp_settings_get_uint32(settings, FreeRDP_EncryptionMethods);
+
+	/**
+	 * Re: settings->EncryptionLevel:
+	 * This is configured/set by the server implementation and serves the same
+	 * purpose as the "Encryption Level" setting in the RDP-Tcp configuration
+	 * dialog of Microsoft's Remote Desktop Session Host Configuration.
+	 * Re: settings->EncryptionMethods:
+	 * at this point this setting contains the client's supported encryption
+	 * methods we've received in gcc_read_client_security_data()
+	 */
+
+	if (!settings->UseRdpSecurityLayer)
+	{
+		/* TLS/NLA is used: disable rdp style encryption */
+		EncryptionLevel = ENCRYPTION_LEVEL_NONE;
+	}
+	else
+	{
+		/* verify server encryption level value */
+		switch (EncryptionLevel)
+		{
+			case ENCRYPTION_LEVEL_NONE:
+				WLog_INFO(TAG, "Active rdp encryption level: NONE");
+				break;
+
+			case ENCRYPTION_LEVEL_FIPS:
+				WLog_INFO(TAG, "Active rdp encryption level: FIPS Compliant");
+				break;
+
+			case ENCRYPTION_LEVEL_HIGH:
+				WLog_INFO(TAG, "Active rdp encryption level: HIGH");
+				break;
+
+			case ENCRYPTION_LEVEL_LOW:
+				WLog_INFO(TAG, "Active rdp encryption level: LOW");
+				break;
+
+			case ENCRYPTION_LEVEL_CLIENT_COMPATIBLE:
+				WLog_INFO(TAG, "Active rdp encryption level: CLIENT-COMPATIBLE");
+				break;
+
+			default:
+				WLog_ERR(TAG, "Invalid server encryption level 0x%08" PRIX32 "", EncryptionLevel);
+				WLog_ERR(TAG, "Switching to encryption level CLIENT-COMPATIBLE");
+				EncryptionLevel = ENCRYPTION_LEVEL_CLIENT_COMPATIBLE;
+		}
+	}
+
+	/* choose rdp encryption method based on server level and client methods */
+	switch (EncryptionLevel)
+	{
+		case ENCRYPTION_LEVEL_NONE:
+			/* The only valid method is NONE in this case */
+			EncryptionMethods = ENCRYPTION_METHOD_NONE;
+			break;
+
+		case ENCRYPTION_LEVEL_FIPS:
+
+			/* The only valid method is FIPS in this case */
+			if (!(EncryptionMethods & ENCRYPTION_METHOD_FIPS))
+			{
+				WLog_WARN(TAG, "client does not support FIPS as required by server configuration");
+			}
+
+			EncryptionMethods = ENCRYPTION_METHOD_FIPS;
+			break;
+
+		case ENCRYPTION_LEVEL_HIGH:
+
+			/* Maximum key strength supported by the server must be used (128 bit)*/
+			if (!(EncryptionMethods & ENCRYPTION_METHOD_128BIT))
+			{
+				WLog_WARN(TAG, "client does not support 128 bit encryption method as required by "
+				               "server configuration");
+			}
+
+			EncryptionMethods = ENCRYPTION_METHOD_128BIT;
+			break;
+
+		case ENCRYPTION_LEVEL_LOW:
+		case ENCRYPTION_LEVEL_CLIENT_COMPATIBLE:
+
+			/* Maximum key strength supported by the client must be used */
+			if (EncryptionMethods & ENCRYPTION_METHOD_128BIT)
+				EncryptionMethods = ENCRYPTION_METHOD_128BIT;
+			else if (EncryptionMethods & ENCRYPTION_METHOD_56BIT)
+				EncryptionMethods = ENCRYPTION_METHOD_56BIT;
+			else if (EncryptionMethods & ENCRYPTION_METHOD_40BIT)
+				EncryptionMethods = ENCRYPTION_METHOD_40BIT;
+			else if (EncryptionMethods & ENCRYPTION_METHOD_FIPS)
+				EncryptionMethods = ENCRYPTION_METHOD_FIPS;
+			else
+			{
+				WLog_WARN(TAG, "client has not announced any supported encryption methods");
+				EncryptionMethods = ENCRYPTION_METHOD_128BIT;
+			}
+
+			break;
+
+		default:
+			WLog_ERR(TAG, "internal error: unknown encryption level");
+			return FALSE;
+	}
+
+	/* log selected encryption method */
+	if (settings->UseRdpSecurityLayer)
+	{
+		switch (EncryptionMethods)
+		{
+			case ENCRYPTION_METHOD_NONE:
+				WLog_INFO(TAG, "Selected rdp encryption method: NONE");
+				break;
+
+			case ENCRYPTION_METHOD_40BIT:
+				WLog_INFO(TAG, "Selected rdp encryption method: 40BIT");
+				break;
+
+			case ENCRYPTION_METHOD_56BIT:
+				WLog_INFO(TAG, "Selected rdp encryption method: 56BIT");
+				break;
+
+			case ENCRYPTION_METHOD_128BIT:
+				WLog_INFO(TAG, "Selected rdp encryption method: 128BIT");
+				break;
+
+			case ENCRYPTION_METHOD_FIPS:
+				WLog_INFO(TAG, "Selected rdp encryption method: FIPS");
+				break;
+
+			default:
+				WLog_ERR(TAG, "internal error: unknown encryption method");
+				return FALSE;
+		}
+	}
+
+	if (!freerdp_settings_set_uint32(settings, FreeRDP_EncryptionLevel, EncryptionLevel))
+		return FALSE;
+	if (!freerdp_settings_set_uint32(settings, FreeRDP_EncryptionMethods, EncryptionMethods))
+		return FALSE;
+	return TRUE;
+}
+
 BOOL rdp_server_accept_mcs_connect_initial(rdpRdp* rdp, wStream* s)
 {
 	WINPR_ASSERT(rdp);
@@ -1512,7 +1661,7 @@ BOOL rdp_server_accept_mcs_connect_initial(rdpRdp* rdp, wStream* s)
 	WINPR_ASSERT(mcs->channels || (mcs->channelCount == 0));
 	for (UINT32 i = 0; i < mcs->channelCount; i++)
 	{
-		ADDIN_ARGV* arg;
+		ADDIN_ARGV* arg = NULL;
 		rdpMcsChannel* cur = &mcs->channels[i];
 		const char* params[1] = { cur->Name };
 		WLog_DBG(TAG, " %s [%" PRIu16 "]", cur->Name, cur->ChannelId);
@@ -1528,6 +1677,8 @@ BOOL rdp_server_accept_mcs_connect_initial(rdpRdp* rdp, wStream* s)
 	}
 
 	if (!rdp_server_transition_to_state(rdp, CONNECTION_STATE_MCS_CREATE_RESPONSE))
+		return FALSE;
+	if (!rdp_update_encryption_level(rdp->settings))
 		return FALSE;
 	if (!mcs_send_connect_response(mcs))
 		return FALSE;
@@ -1587,10 +1738,9 @@ BOOL rdp_server_accept_mcs_attach_user_request(rdpRdp* rdp, wStream* s)
 
 BOOL rdp_server_accept_mcs_channel_join_request(rdpRdp* rdp, wStream* s)
 {
-	UINT32 i;
-	UINT16 channelId;
+	UINT16 channelId = 0;
 	BOOL allJoined = TRUE;
-	rdpMcs* mcs;
+	rdpMcs* mcs = NULL;
 
 	WINPR_ASSERT(rdp);
 	WINPR_ASSERT(rdp->context);
@@ -1616,7 +1766,7 @@ BOOL rdp_server_accept_mcs_channel_join_request(rdpRdp* rdp, wStream* s)
 	if (channelId == mcs->messageChannelId)
 		mcs->messageChannelJoined = TRUE;
 
-	for (i = 0; i < mcs->channelCount; i++)
+	for (UINT32 i = 0; i < mcs->channelCount; i++)
 	{
 		rdpMcsChannel* cur = &mcs->channels[i];
 		WLog_DBG(TAG, " %s [%" PRIu16 "]", cur->Name, cur->ChannelId);
@@ -1627,7 +1777,7 @@ BOOL rdp_server_accept_mcs_channel_join_request(rdpRdp* rdp, wStream* s)
 			allJoined = FALSE;
 	}
 
-	CONNECTION_STATE rc;
+	CONNECTION_STATE rc = CONNECTION_STATE_INITIAL;
 	if ((mcs->userChannelJoined) && (mcs->globalChannelJoined) &&
 	    (mcs->messageChannelId == 0 || mcs->messageChannelJoined) && allJoined)
 		rc = CONNECTION_STATE_RDP_SECURITY_COMMENCEMENT;
@@ -1656,14 +1806,12 @@ static BOOL rdp_server_send_sync(rdpRdp* rdp)
 
 BOOL rdp_server_accept_confirm_active(rdpRdp* rdp, wStream* s, UINT16 pduLength)
 {
-	freerdp_peer* peer;
-
 	WINPR_ASSERT(rdp);
 	WINPR_ASSERT(rdp->context);
 	WINPR_ASSERT(rdp->settings);
 	WINPR_ASSERT(s);
 
-	peer = rdp->context->peer;
+	freerdp_peer* peer = rdp->context->peer;
 	WINPR_ASSERT(peer);
 
 	if (rdp_get_state(rdp) != CONNECTION_STATE_CAPABILITIES_EXCHANGE_CONFIRM_ACTIVE)
@@ -1682,7 +1830,10 @@ BOOL rdp_server_accept_confirm_active(rdpRdp* rdp, wStream* s, UINT16 pduLength)
 		return FALSE;
 
 	if (peer->ClientCapabilities && !peer->ClientCapabilities(peer))
+	{
+		WLog_WARN(TAG, "peer->ClientCapabilities failed");
 		return FALSE;
+	}
 
 	if (rdp->settings->SaltedChecksum)
 		rdp->do_secure_checksum = TRUE;
@@ -1901,8 +2052,7 @@ const char* rdp_get_state_string(const rdpRdp* rdp)
 
 BOOL rdp_channels_from_mcs(rdpSettings* settings, const rdpRdp* rdp)
 {
-	size_t x;
-	const rdpMcs* mcs;
+	const rdpMcs* mcs = NULL;
 
 	WINPR_ASSERT(rdp);
 
@@ -1913,7 +2063,7 @@ BOOL rdp_channels_from_mcs(rdpSettings* settings, const rdpRdp* rdp)
 	                                      CHANNEL_MAX_COUNT))
 		return FALSE;
 
-	for (x = 0; x < mcs->channelCount; x++)
+	for (UINT32 x = 0; x < mcs->channelCount; x++)
 	{
 		const rdpMcsChannel* mchannel = &mcs->channels[x];
 		CHANNEL_DEF cur = { 0 };

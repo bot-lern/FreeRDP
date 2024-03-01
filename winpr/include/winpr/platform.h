@@ -22,7 +22,7 @@
 
 #include <stdlib.h>
 
-#if __clang__
+#if defined(__clang__)
 #define WINPR_PRAGMA_DIAG_PUSH _Pragma("clang diagnostic push")
 #define WINPR_PRAGMA_DIAG_IGNORED_PEDANTIC _Pragma("clang diagnostic ignored \"-Wpedantic\"")
 #define WINPR_PRAGMA_DIAG_IGNORED_MISSING_PROTOTYPES \
@@ -37,8 +37,10 @@
 	_Pragma("clang diagnostic ignored \"-Wunused-const-variable\"")
 #define WINPR_PRAGMA_DIAG_IGNORED_FORMAT_SECURITY \
 	_Pragma("clang diagnostic ignored \"-Wformat-security\"")
+#define WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC \
+	_Pragma("clang diagnostic ignored \"-Wmismatched-dealloc\"")
 #define WINPR_PRAGMA_DIAG_POP _Pragma("clang diagnostic pop")
-#elif __GNUC__
+#elif defined(__GNUC__)
 #define WINPR_PRAGMA_DIAG_PUSH _Pragma("GCC diagnostic push")
 #define WINPR_PRAGMA_DIAG_IGNORED_PEDANTIC _Pragma("GCC diagnostic ignored \"-Wpedantic\"")
 #define WINPR_PRAGMA_DIAG_IGNORED_MISSING_PROTOTYPES \
@@ -54,6 +56,8 @@
 	_Pragma("GCC diagnostic ignored \"-Wunused-const-variable\"")
 #define WINPR_PRAGMA_DIAG_IGNORED_FORMAT_SECURITY \
 	_Pragma("GCC diagnostic ignored \"-Wformat-security\"")
+#define WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC \
+	_Pragma("GCC diagnostic ignored \"-Wmismatched-dealloc\"")
 #define WINPR_PRAGMA_DIAG_POP _Pragma("GCC diagnostic pop")
 #else
 #define WINPR_PRAGMA_DIAG_PUSH
@@ -64,6 +68,7 @@
 #define WINPR_PRAGMA_DIAG_IGNORED_ATOMIC_SEQ_CST
 #define WINPR_PRAGMA_DIAG_IGNORED_UNUSED_CONST_VAR
 #define WINPR_PRAGMA_DIAG_IGNORED_FORMAT_SECURITY
+#define WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC
 #define WINPR_PRAGMA_DIAG_POP
 #endif
 
@@ -169,6 +174,14 @@ WINPR_PRAGMA_DIAG_IGNORED_RESERVED_ID_MACRO
 #if defined(__sparc) || defined(__sparc__)
 #ifndef _M_SPARC
 #define _M_SPARC 1
+#endif
+#endif
+
+/* E2K (_M_E2K) */
+
+#if defined(__e2k__)
+#ifndef _M_E2K
+#define _M_E2K 1
 #endif
 #endif
 
@@ -326,7 +339,7 @@ WINPR_PRAGMA_DIAG_IGNORED_RESERVED_ID_MACRO
 #else
 
 #if defined(__ARMEL__) || defined(__THUMBEL__) || defined(__AARCH64EL__) || defined(_MIPSEL) || \
-    defined(__MIPSEL) || defined(__MIPSEL__)
+    defined(__MIPSEL) || defined(__MIPSEL__) || defined(__e2k__)
 #ifndef __LITTLE_ENDIAN__
 #define __LITTLE_ENDIAN__ 1
 #endif

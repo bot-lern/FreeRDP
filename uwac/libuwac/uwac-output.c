@@ -36,7 +36,7 @@ static bool dupstr(char** dst, const char* src)
 	*dst = NULL;
 	if (!src)
 		return true;
-	*dst = _strdup(src);
+	*dst = strdup(src);
 	return *dst != NULL;
 }
 
@@ -89,6 +89,8 @@ static void output_handle_scale(void* data, struct wl_output* wl_output, int32_t
 	assert(output);
 
 	output->scale = scale;
+	if (scale > output->display->actual_scale)
+		output->display->actual_scale = scale;
 }
 
 static void output_handle_name(void* data, struct wl_output* wl_output, const char* name)

@@ -243,15 +243,18 @@ FREERDP_LOCAL BOOL rdp_send_message_channel_pdu(rdpRdp* rdp, wStream* s, UINT16 
 FREERDP_LOCAL state_run_t rdp_recv_message_channel_pdu(rdpRdp* rdp, wStream* s,
                                                        UINT16 securityFlags);
 
-FREERDP_LOCAL state_run_t rdp_recv_out_of_sequence_pdu(rdpRdp* rdp, wStream* s);
+FREERDP_LOCAL state_run_t rdp_recv_out_of_sequence_pdu(rdpRdp* rdp, wStream* s, UINT16 pduType,
+                                                       UINT16 length);
 
 FREERDP_LOCAL state_run_t rdp_recv_callback(rdpTransport* transport, wStream* s, void* extra);
 
 FREERDP_LOCAL int rdp_check_fds(rdpRdp* rdp);
 
+FREERDP_LOCAL void rdp_free(rdpRdp* rdp);
+
+WINPR_ATTR_MALLOC(rdp_free, 1)
 FREERDP_LOCAL rdpRdp* rdp_new(rdpContext* context);
 FREERDP_LOCAL BOOL rdp_reset(rdpRdp* rdp);
-FREERDP_LOCAL void rdp_free(rdpRdp* rdp);
 
 FREERDP_LOCAL BOOL rdp_io_callback_set_event(rdpRdp* rdp, BOOL reset);
 

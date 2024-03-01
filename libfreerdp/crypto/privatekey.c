@@ -36,6 +36,7 @@
 
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
+#include <openssl/bn.h>
 
 #include "privatekey.h"
 #include "cert_common.h"
@@ -98,7 +99,13 @@ static RSA* evp_pkey_to_rsa(const rdpPrivateKey* key)
 	}
 
 	RSA* rsa = NULL;
-	BIO* bio = BIO_new(BIO_s_secmem());
+	BIO* bio = BIO_new(
+#if defined(LIBRESSL_VERSION_NUMBER)
+	    BIO_s_mem()
+#else
+	    BIO_s_secmem()
+#endif
+	);
 	if (!bio)
 		return NULL;
 	const int rc = PEM_write_bio_PrivateKey(bio, key->evp, NULL, NULL, 0, NULL, NULL);
@@ -114,7 +121,7 @@ fail:
 static EVP_PKEY* evp_pkey_utils_from_pem(const char* data, size_t len, BOOL fromFile)
 {
 	EVP_PKEY* evp = NULL;
-	BIO* bio;
+	BIO* bio = NULL;
 	if (fromFile)
 		bio = BIO_new_file(data, "rb");
 	else
@@ -149,7 +156,9 @@ static BOOL key_read_private(rdpPrivateKey* key)
 	RSA* rsa = evp_pkey_to_rsa(key);
 	if (!rsa)
 	{
-		WLog_ERR(TAG, "unable to load RSA key: %s.", strerror(errno));
+		char ebuffer[256] = { 0 };
+		WLog_ERR(TAG, "unable to load RSA key: %s.",
+		         winpr_strerror(errno, ebuffer, sizeof(ebuffer)));
 		goto fail;
 	}
 
@@ -164,8 +173,12 @@ static BOOL key_read_private(rdpPrivateKey* key)
 			break;
 
 		default:
-			WLog_ERR(TAG, "unexpected error when checking RSA key: %s.", strerror(errno));
+		{
+			char ebuffer[256] = { 0 };
+			WLog_ERR(TAG, "unexpected error when checking RSA key: %s.",
+			         winpr_strerror(errno, ebuffer, sizeof(ebuffer)));
 			goto fail;
+		}
 	}
 
 	const BIGNUM* rsa_e = NULL;
@@ -281,7 +294,10 @@ rdpPrivateKey* freerdp_key_clone(const rdpPrivateKey* key)
 
 	return _key;
 out_fail:
+	WINPR_PRAGMA_DIAG_PUSH
+	WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC
 	freerdp_key_free(_key);
+	WINPR_PRAGMA_DIAG_POP
 	return NULL;
 }
 
@@ -466,13 +482,19 @@ char* freerdp_key_get_param(const rdpPrivateKey* key, enum FREERDP_KEY_PARAM par
 		switch (param)
 		{
 			case FREERDP_KEY_PARAM_RSA_D:
+#if OPENSSL_VERSION_NUMBER >= 0x10101007L
 				cbn = RSA_get0_d(rsa);
+#endif
 				break;
 			case FREERDP_KEY_PARAM_RSA_E:
+#if OPENSSL_VERSION_NUMBER >= 0x10101007L
 				cbn = RSA_get0_e(rsa);
+#endif
 				break;
 			case FREERDP_KEY_PARAM_RSA_N:
+#if OPENSSL_VERSION_NUMBER >= 0x10101007L
 				cbn = RSA_get0_n(rsa);
+#endif
 				break;
 			default:
 				return NULL;

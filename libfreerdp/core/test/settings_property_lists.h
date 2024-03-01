@@ -139,6 +139,7 @@ static const size_t bool_list_indices[] = {
 	FreeRDP_RemoteAssistanceMode,
 	FreeRDP_RemoteAssistanceRequestControl,
 	FreeRDP_RemoteConsoleAudio,
+	FreeRDP_RemoteCredentialGuard,
 	FreeRDP_RemoteFxCodec,
 	FreeRDP_RemoteFxImageCodec,
 	FreeRDP_RemoteFxOnly,
@@ -174,6 +175,8 @@ static const size_t bool_list_indices[] = {
 	FreeRDP_SurfaceCommandsEnabled,
 	FreeRDP_SurfaceFrameMarkerEnabled,
 	FreeRDP_SuspendInput,
+	FreeRDP_SynchronousDynamicChannels,
+	FreeRDP_SynchronousStaticChannels,
 	FreeRDP_TcpKeepAlive,
 	FreeRDP_TlsSecurity,
 	FreeRDP_ToggleFullscreen,
@@ -331,8 +334,8 @@ static const size_t uint32_list_indices[] = {
 	FreeRDP_TcpKeepAliveRetries,
 	FreeRDP_ThreadingFlags,
 	FreeRDP_TlsSecLevel,
-	FreeRDP_VirtualChannelChunkSize,
-	FreeRDP_VirtualChannelCompressionFlags,
+	FreeRDP_VCChunkSize,
+	FreeRDP_VCFlags,
 };
 
 #define have_int32_list_indices
@@ -348,6 +351,7 @@ static const size_t uint64_list_indices[] = {
 
 #define have_string_list_indices
 static const size_t string_list_indices[] = {
+	FreeRDP_AadServerHostname,
 	FreeRDP_AcceptedCert,
 	FreeRDP_ActionScript,
 	FreeRDP_AllowedTlsCiphers,

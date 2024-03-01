@@ -48,11 +48,9 @@
 
 static BOOL nsc_decode(NSC_CONTEXT* context)
 {
-	UINT16 x;
-	UINT16 y;
-	UINT16 rw;
-	BYTE shift;
-	BYTE* bmpdata;
+	UINT16 rw = 0;
+	BYTE shift = 0;
+	BYTE* bmpdata = NULL;
 	size_t pos = 0;
 
 	if (!context)
@@ -65,11 +63,11 @@ static BOOL nsc_decode(NSC_CONTEXT* context)
 	if (!bmpdata)
 		return FALSE;
 
-	for (y = 0; y < context->height; y++)
+	for (UINT32 y = 0; y < context->height; y++)
 	{
-		const BYTE* yplane;
-		const BYTE* coplane;
-		const BYTE* cgplane;
+		const BYTE* yplane = NULL;
+		const BYTE* coplane = NULL;
+		const BYTE* cgplane = NULL;
 		const BYTE* aplane = context->priv->PlaneBuffers[3] + y * context->width; /* A */
 
 		if (context->ChromaSubsamplingLevel)
@@ -85,7 +83,7 @@ static BOOL nsc_decode(NSC_CONTEXT* context)
 			cgplane = context->priv->PlaneBuffers[2] + y * context->width; /* Cg */
 		}
 
-		for (x = 0; x < context->width; x++)
+		for (UINT32 x = 0; x < context->width; x++)
 		{
 			INT16 y_val = (INT16)*yplane;
 			INT16 co_val = (INT16)(INT8)(*coplane << shift);
@@ -428,9 +426,9 @@ BOOL nsc_process_message(NSC_CONTEXT* context, UINT16 bpp, UINT32 width, UINT32 
                          UINT32 nDstStride, UINT32 nXDst, UINT32 nYDst, UINT32 nWidth,
                          UINT32 nHeight, UINT32 flip)
 {
-	wStream* s;
+	wStream* s = NULL;
 	wStream sbuffer = { 0 };
-	BOOL ret;
+	BOOL ret = 0;
 	if (!context || !data || !pDstData)
 		return FALSE;
 
@@ -477,7 +475,7 @@ BOOL nsc_process_message(NSC_CONTEXT* context, UINT16 bpp, UINT32 width, UINT32 
 
 	/* RLE decode */
 	{
-		BOOL rc;
+		BOOL rc = 0;
 		PROFILER_ENTER(context->priv->prof_nsc_rle_decompress_data)
 		rc = nsc_rle_decompress_data(context);
 		PROFILER_EXIT(context->priv->prof_nsc_rle_decompress_data)
@@ -487,7 +485,7 @@ BOOL nsc_process_message(NSC_CONTEXT* context, UINT16 bpp, UINT32 width, UINT32 
 	}
 	/* Colorloss recover, Chroma supersample and AYCoCg to ARGB Conversion in one step */
 	{
-		BOOL rc;
+		BOOL rc = 0;
 		PROFILER_ENTER(context->priv->prof_nsc_decode)
 		rc = context->decode(context);
 		PROFILER_EXIT(context->priv->prof_nsc_decode)

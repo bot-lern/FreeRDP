@@ -120,6 +120,8 @@ static DWORD GetProcessorArchitecture(void)
 	cpuArch = PROCESSOR_ARCHITECTURE_PPC;
 #elif defined(_M_ALPHA)
 	cpuArch = PROCESSOR_ARCHITECTURE_ALPHA;
+#elif defined(_M_E2K)
+	cpuArch = PROCESSOR_ARCHITECTURE_E2K;
 #endif
 	return cpuArch;
 }
@@ -391,7 +393,7 @@ BOOL GetVersionExW(LPOSVERSIONINFOW lpVersionInformation)
 
 BOOL GetComputerNameW(LPWSTR lpBuffer, LPDWORD lpnSize)
 {
-	BOOL rc;
+	BOOL rc = 0;
 	LPSTR buffer = NULL;
 	if (!lpnSize || (*lpnSize > INT_MAX))
 		return FALSE;
@@ -417,8 +419,8 @@ BOOL GetComputerNameW(LPWSTR lpBuffer, LPDWORD lpnSize)
 
 BOOL GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize)
 {
-	char* dot;
-	size_t length;
+	char* dot = NULL;
+	size_t length = 0;
 	char hostname[256] = { 0 };
 
 	if (!lpnSize)
@@ -451,7 +453,7 @@ BOOL GetComputerNameA(LPSTR lpBuffer, LPDWORD lpnSize)
 
 BOOL GetComputerNameExA(COMPUTER_NAME_FORMAT NameType, LPSTR lpBuffer, LPDWORD lpnSize)
 {
-	size_t length;
+	size_t length = 0;
 	char hostname[256] = { 0 };
 
 	if (!lpnSize)
@@ -507,7 +509,7 @@ BOOL GetComputerNameExA(COMPUTER_NAME_FORMAT NameType, LPSTR lpBuffer, LPDWORD l
 
 BOOL GetComputerNameExW(COMPUTER_NAME_FORMAT NameType, LPWSTR lpBuffer, LPDWORD lpnSize)
 {
-	BOOL rc;
+	BOOL rc = 0;
 	LPSTR lpABuffer = NULL;
 
 	if (!lpnSize)
@@ -798,20 +800,27 @@ BOOL IsProcessorFeaturePresent(DWORD ProcessorFeature)
 			break;
 	}
 
-#elif defined(__APPLE__) // __linux__
+#else // __linux__
 
 	switch (ProcessorFeature)
 	{
 		case PF_ARM_NEON_INSTRUCTIONS_AVAILABLE:
 		case PF_ARM_NEON:
+#ifdef __ARM_NEON
 			ret = TRUE;
+#endif
+			break;
+		default:
 			break;
 	}
 
 #endif // __linux__
 #elif defined(_M_IX86_AMD64)
 #ifdef __GNUC__
-	unsigned a, b, c, d;
+	unsigned a = 0;
+	unsigned b = 0;
+	unsigned c = 0;
+	unsigned d = 0;
 	cpuid(1, &a, &b, &c, &d);
 
 	switch (ProcessorFeature)
@@ -851,6 +860,32 @@ BOOL IsProcessorFeaturePresent(DWORD ProcessorFeature)
 	}
 
 #endif // __GNUC__
+#elif defined(_M_E2K)
+	/* compiler flags on e2k arch determine CPU features */
+	switch (ProcessorFeature)
+	{
+		case PF_MMX_INSTRUCTIONS_AVAILABLE:
+#ifdef __MMX__
+			ret = TRUE;
+#endif
+			break;
+
+		case PF_3DNOW_INSTRUCTIONS_AVAILABLE:
+#ifdef __3dNOW__
+			ret = TRUE;
+#endif
+			break;
+
+		case PF_SSE3_INSTRUCTIONS_AVAILABLE:
+#ifdef __SSE3__
+			ret = TRUE;
+#endif
+			break;
+
+		default:
+			break;
+	}
+
 #endif
 	return ret;
 }
@@ -913,14 +948,20 @@ BOOL IsProcessorFeaturePresentEx(DWORD ProcessorFeature)
 
 #endif // __linux__
 #elif defined(_M_IX86_AMD64)
-	unsigned a, b, c, d;
+	unsigned a = 0;
+	unsigned b = 0;
+	unsigned c = 0;
+	unsigned d = 0;
 	cpuid(1, &a, &b, &c, &d);
 
 	switch (ProcessorFeature)
 	{
 		case PF_EX_LZCNT:
 		{
-			unsigned a81, b81, c81, d81;
+			unsigned a81 = 0;
+			unsigned b81 = 0;
+			unsigned c81 = 0;
+			unsigned d81 = 0;
 			cpuid(0x80000001, &a81, &b81, &c81, &d81);
 
 			if (c81 & C81_BIT_LZCNT)
@@ -968,7 +1009,8 @@ BOOL IsProcessorFeaturePresentEx(DWORD ProcessorFeature)
 			if (!(c & C_BIT_XGETBV))
 				break;
 
-			int e, f;
+			int e = 0;
+			int f = 0;
 			xgetbv(0, e, f);
 
 			/* XGETBV enabled for applications and XMM/YMM states enabled */
@@ -1026,7 +1068,55 @@ BOOL IsProcessorFeaturePresentEx(DWORD ProcessorFeature)
 		default:
 			break;
 	}
+#elif defined(_M_E2K)
+	/* compiler flags on e2k arch determine CPU features */
+	switch (ProcessorFeature)
+	{
+		case PF_EX_LZCNT:
+#ifdef __LZCNT__
+			ret = TRUE;
+#endif
+			break;
 
+		case PF_EX_SSSE3:
+#ifdef __SSSE3__
+			ret = TRUE;
+#endif
+			break;
+
+		case PF_EX_SSE41:
+#ifdef __SSE4_1__
+			ret = TRUE;
+#endif
+			break;
+
+		case PF_EX_SSE42:
+#ifdef __SSE4_2__
+			ret = TRUE;
+#endif
+			break;
+
+		case PF_EX_AVX:
+#ifdef __AVX__
+			ret = TRUE;
+#endif
+			break;
+
+		case PF_EX_AVX2:
+#ifdef __AVX2__
+			ret = TRUE;
+#endif
+			break;
+
+		case PF_EX_FMA:
+#ifdef __FMA__
+			ret = TRUE;
+#endif
+			break;
+
+		default:
+			break;
+	}
 #endif
 	return ret;
 }

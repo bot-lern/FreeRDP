@@ -80,13 +80,12 @@ static void xf_keyboard_clear(xfContext* xfc)
 
 static BOOL xf_keyboard_action_script_init(xfContext* xfc)
 {
-	wObject* obj;
-	FILE* keyScript;
-	char* keyCombination;
+	wObject* obj = NULL;
+	FILE* keyScript = NULL;
 	char buffer[1024] = { 0 };
 	char command[1024] = { 0 };
-	const rdpSettings* settings;
-	const char* ActionScript;
+	const rdpSettings* settings = NULL;
+	const char* ActionScript = NULL;
 	WINPR_ASSERT(xfc);
 
 	settings = xfc->common.context.settings;
@@ -104,7 +103,9 @@ static BOOL xf_keyboard_action_script_init(xfContext* xfc)
 		return FALSE;
 
 	obj = ArrayList_Object(xfc->keyCombinations);
-	obj->fnObjectFree = free;
+	WINPR_ASSERT(obj);
+	obj->fnObjectNew = winpr_ObjectStringClone;
+	obj->fnObjectFree = winpr_ObjectStringFree;
 	sprintf_s(command, sizeof(command), "%s key", ActionScript);
 	keyScript = popen(command, "r");
 
@@ -118,9 +119,8 @@ static BOOL xf_keyboard_action_script_init(xfContext* xfc)
 	{
 		char* context = NULL;
 		strtok_s(buffer, "\n", &context);
-		keyCombination = _strdup(buffer);
 
-		if (!keyCombination || !ArrayList_Append(xfc->keyCombinations, keyCombination))
+		if (!buffer || !ArrayList_Append(xfc->keyCombinations, buffer))
 		{
 			ArrayList_Free(xfc->keyCombinations);
 			xfc->actionScriptExists = FALSE;
@@ -147,7 +147,7 @@ static void xf_keyboard_action_script_free(xfContext* xfc)
 
 BOOL xf_keyboard_init(xfContext* xfc)
 {
-	rdpSettings* settings;
+	rdpSettings* settings = NULL;
 
 	WINPR_ASSERT(xfc);
 
@@ -155,10 +155,11 @@ BOOL xf_keyboard_init(xfContext* xfc)
 	WINPR_ASSERT(settings);
 
 	xf_keyboard_clear(xfc);
-	xfc->KeyboardLayout = settings->KeyboardLayout;
-	xfc->KeyboardLayout =
-	    freerdp_keyboard_init_ex(xfc->KeyboardLayout, settings->KeyboardRemappingList);
-	settings->KeyboardLayout = xfc->KeyboardLayout;
+	xfc->KeyboardLayout = freerdp_settings_get_uint32(settings, FreeRDP_KeyboardLayout);
+	xfc->KeyboardLayout = freerdp_keyboard_init_ex(
+	    xfc->KeyboardLayout, freerdp_settings_get_string(settings, FreeRDP_KeyboardRemappingList));
+	if (!freerdp_settings_set_uint32(settings, FreeRDP_KeyboardLayout, xfc->KeyboardLayout))
+		return FALSE;
 
 	if (!xf_keyboard_update_modifier_map(xfc))
 		return FALSE;
@@ -175,7 +176,7 @@ void xf_keyboard_free(xfContext* xfc)
 
 void xf_keyboard_key_press(xfContext* xfc, const XKeyEvent* event, KeySym keysym)
 {
-	BOOL last;
+	BOOL last = 0;
 
 	WINPR_ASSERT(xfc);
 	WINPR_ASSERT(event);
@@ -235,8 +236,8 @@ BOOL xf_keyboard_key_pressed(xfContext* xfc, KeySym keysym)
 
 void xf_keyboard_send_key(xfContext* xfc, BOOL down, BOOL repeat, const XKeyEvent* event)
 {
-	DWORD rdp_scancode;
-	rdpInput* input;
+	DWORD rdp_scancode = 0;
+	rdpInput* input = NULL;
 
 	WINPR_ASSERT(xfc);
 	WINPR_ASSERT(event);
@@ -275,7 +276,7 @@ void xf_keyboard_send_key(xfContext* xfc, BOOL down, BOOL repeat, const XKeyEven
 					    XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, NULL);
 
 					KeySym ignore = { 0 };
-					Status return_status;
+					Status return_status = 0;
 					XKeyEvent ev = *event;
 					ev.type = KeyPress;
 					xwc = XwcLookupString(xic, &ev, buffer, ARRAYSIZE(buffer), &ignore,
@@ -309,8 +310,8 @@ void xf_keyboard_send_key(xfContext* xfc, BOOL down, BOOL repeat, const XKeyEven
 
 int xf_keyboard_read_keyboard_state(xfContext* xfc)
 {
-	int dummy;
-	Window wdummy;
+	int dummy = 0;
+	Window wdummy = 0;
 	UINT32 state = 0;
 
 	if (!xfc->remote_app && xfc->window)
@@ -421,7 +422,9 @@ void xf_keyboard_focus_in(xfContext* xfc)
 {
 	UINT32 state = 0;
 	Window w = None;
-	int d = 0, x = 0, y = 0;
+	int d = 0;
+	int x = 0;
+	int y = 0;
 
 	WINPR_ASSERT(xfc);
 	if (!xfc->display || !xfc->window)
@@ -597,7 +600,7 @@ BOOL xf_keyboard_handle_special_keys(xfContext* xfc, KeySym keysym)
 #if 0 /* set to 1 to enable multi touch gesture simulation via keyboard */
 #ifdef WITH_XRENDER
 
-	if (!xfc->remote_app && xfc->settings->MultiTouchGestures)
+    if (!xfc->remote_app && freerdp_settings_get_bool(xfc->common.context.settings, FreeRDP_MultiTouchGestures))
 	{
 		rdpContext* ctx = &xfc->common.context;
 
@@ -610,20 +613,24 @@ BOOL xf_keyboard_handle_special_keys(xfContext* xfc, KeySym keysym)
 
 			switch (keysym)
 			{
-				case XK_0:	/* Ctrl-Alt-0: Reset scaling and panning */
-					xfc->scaledWidth = xfc->sessionWidth;
-					xfc->scaledHeight = xfc->sessionHeight;
+                case XK_0:	/* Ctrl-Alt-0: Reset scaling and panning */{
+                const UINT32 sessionWidth = freerdp_settings_get_uint32(xfc->common.context.settings, FreeRDP_DesktopWidth);
+                const UINT32 sessionHeight = freerdp_settings_get_uint32(xfc->common.context.settings, FreeRDP_DesktopHeight);
+
+                    xfc->scaledWidth = sessionWidth;
+                    xfc->scaledHeight = sessionHeight;
 					xfc->offset_x = 0;
 					xfc->offset_y = 0;
 
-					if (!xfc->fullscreen && (xfc->sessionWidth != xfc->window->width ||
-					                         xfc->sessionHeight != xfc->window->height))
+                    if (!xfc->fullscreen && (sessionWidth != xfc->window->width ||
+                                             sessionHeight != xfc->window->height))
 					{
-						xf_ResizeDesktopWindow(xfc, xfc->window, xfc->sessionWidth, xfc->sessionHeight);
+                        xf_ResizeDesktopWindow(xfc, xfc->window, sessionWidth, sessionHeight);
 					}
 
-					xf_draw_screen(xfc, 0, 0, xfc->sessionWidth, xfc->sessionHeight);
+                    xf_draw_screen(xfc, 0, 0, sessionWidth, sessionHeight);
 					return TRUE;
+}
 
 				case XK_1:	/* Ctrl-Alt-1: Zoom in */
 					zdx = zdy = 10;

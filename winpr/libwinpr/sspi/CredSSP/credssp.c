@@ -45,8 +45,8 @@ static SECURITY_STATUS SEC_ENTRY credssp_InitializeSecurityContextA(
     ULONG Reserved1, ULONG TargetDataRep, PSecBufferDesc pInput, ULONG Reserved2,
     PCtxtHandle phNewContext, PSecBufferDesc pOutput, PULONG pfContextAttr, PTimeStamp ptsExpiry)
 {
-	CREDSSP_CONTEXT* context;
-	SSPI_CREDENTIALS* credentials;
+	CREDSSP_CONTEXT* context = NULL;
+	SSPI_CREDENTIALS* credentials = NULL;
 
 	/* behave like windows SSPIs that don't want empty context */
 	if (phContext && !phContext->dwLower && !phContext->dwUpper)
@@ -85,7 +85,7 @@ static SECURITY_STATUS SEC_ENTRY credssp_InitializeSecurityContextA(
 
 CREDSSP_CONTEXT* credssp_ContextNew(void)
 {
-	CREDSSP_CONTEXT* context;
+	CREDSSP_CONTEXT* context = NULL;
 	context = (CREDSSP_CONTEXT*)calloc(1, sizeof(CREDSSP_CONTEXT));
 
 	if (!context)
@@ -126,8 +126,8 @@ static SECURITY_STATUS SEC_ENTRY credssp_AcquireCredentialsHandleA(
     void* pAuthData, SEC_GET_KEY_FN pGetKeyFn, void* pvGetKeyArgument, PCredHandle phCredential,
     PTimeStamp ptsExpiry)
 {
-	SSPI_CREDENTIALS* credentials;
-	SEC_WINNT_AUTH_IDENTITY* identity;
+	SSPI_CREDENTIALS* credentials = NULL;
+	SEC_WINNT_AUTH_IDENTITY* identity = NULL;
 
 	if (fCredentialUse == SECPKG_CRED_OUTBOUND)
 	{
@@ -183,7 +183,7 @@ static SECURITY_STATUS SEC_ENTRY credssp_QueryCredentialsAttributesA(PCredHandle
 
 static SECURITY_STATUS SEC_ENTRY credssp_FreeCredentialsHandle(PCredHandle phCredential)
 {
-	SSPI_CREDENTIALS* credentials;
+	SSPI_CREDENTIALS* credentials = NULL;
 
 	if (!phCredential)
 		return SEC_E_INVALID_HANDLE;
@@ -300,18 +300,23 @@ const SecPkgInfoA CREDSSP_SecPkgInfoA = {
 	"Microsoft CredSSP Security Provider" /* Comment */
 };
 
-static WCHAR CREDSSP_SecPkgInfoW_Name[] = { 'C', 'R', 'E', 'D', 'S', 'S', 'P', '\0' };
-
-static WCHAR CREDSSP_SecPkgInfoW_Comment[] = { 'M', 'i', 'c', 'r', 'o', 's', 'o', 'f', 't',
-	                                           ' ', 'C', 'r', 'e', 'd', 'S', 'S', 'P', ' ',
-	                                           'S', 'e', 'c', 'u', 'r', 'i', 't', 'y', ' ',
-	                                           'P', 'r', 'o', 'v', 'i', 'd', 'e', 'r', '\0' };
+static WCHAR CREDSSP_SecPkgInfoW_NameBuffer[128] = { 0 };
+static WCHAR CREDSSP_SecPkgInfoW_CommentBuffer[128] = { 0 };
 
 const SecPkgInfoW CREDSSP_SecPkgInfoW = {
-	0x000110733,                /* fCapabilities */
-	1,                          /* wVersion */
-	0xFFFF,                     /* wRPCID */
-	0x000090A8,                 /* cbMaxToken */
-	CREDSSP_SecPkgInfoW_Name,   /* Name */
-	CREDSSP_SecPkgInfoW_Comment /* Comment */
+	0x000110733,                      /* fCapabilities */
+	1,                                /* wVersion */
+	0xFFFF,                           /* wRPCID */
+	0x000090A8,                       /* cbMaxToken */
+	CREDSSP_SecPkgInfoW_NameBuffer,   /* Name */
+	CREDSSP_SecPkgInfoW_CommentBuffer /* Comment */
 };
+
+BOOL CREDSSP_init(void)
+{
+	InitializeConstWCharFromUtf8(CREDSSP_SecPkgInfoA.Name, CREDSSP_SecPkgInfoW_NameBuffer,
+	                             ARRAYSIZE(CREDSSP_SecPkgInfoW_NameBuffer));
+	InitializeConstWCharFromUtf8(CREDSSP_SecPkgInfoA.Comment, CREDSSP_SecPkgInfoW_CommentBuffer,
+	                             ARRAYSIZE(CREDSSP_SecPkgInfoW_CommentBuffer));
+	return TRUE;
+}

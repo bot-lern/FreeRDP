@@ -90,15 +90,14 @@ static const COMMAND_LINE_ARGUMENT_A global_cmd_args[] = {
 	  "[deny,ignore,name:<name>,tofu,fingerprint:<hash>:<hash as hex>[,fingerprint:<hash>:<another "
 	  "hash>]]",
 	  NULL, NULL, -1, NULL,
-	  "Certificate accept options. Use with care!"
+	  "Certificate accept options. Use with care!\n"
 	  " * deny         ... Automatically abort connection if the certificate does not match, no "
-	  "user interaction.          "
-	  " * ignore       ... Ignore the certificate checks altogether (overrules all other options)  "
-	  "                        "
+	  "user interaction.\n"
+	  " * ignore       ... Ignore the certificate checks altogether (overrules all other options)\n"
 	  " * name         ... Use the alternate <name> instead of the certificate subject to match "
-	  "locally stored certificates"
+	  "locally stored certificates\n"
 	  " * tofu         ... Accept certificate unconditionally on first connect and deny on "
-	  "subsequent connections if the certificate does not match"
+	  "subsequent connections if the certificate does not match\n"
 	  " * fingerprints ... A list of certificate hashes that are accepted unconditionally for a "
 	  "connection" },
 #if defined(WITH_FREERDP_DEPRECATED_COMMANDLINE)
@@ -122,12 +121,13 @@ static const COMMAND_LINE_ARGUMENT_A global_cmd_args[] = {
 	  "Client Hostname to send to server" },
 	{ "clipboard", COMMAND_LINE_VALUE_BOOL | COMMAND_LINE_VALUE_OPTIONAL,
 	  "[[use-selection:<atom>],[direction-to:[all|local|remote|off]],[files-to[:all|local|remote|"
-	  "off]]],",
+	  "off]]]",
 	  BoolValueTrue, NULL, -1, NULL,
-	  "Redirect clipboard.                       "
+	  "Redirect clipboard:\n"
 	  " * use-selection:<atom>  ... (X11) Specify which X selection to access. Default is "
-	  "CLIPBOARD."
-	  " PRIMARY is the X-style middle-click selection." },
+	  "CLIPBOARD. PRIMARY is the X-style middle-click selection.\n"
+	  " * direction-to:[all|local|remote|off] control enabled clipboard direction\n"
+	  " * files-to:[all|local|remote|off] control enabled file clipboard directiont" },
 #if defined(WITH_FREERDP_DEPRECATED_COMMANDLINE)
 	{ "codec-cache", COMMAND_LINE_VALUE_REQUIRED, "[rfx|nsc|jpeg]", NULL, NULL, -1, NULL,
 	  "[DEPRECATED, use /cache:codec:[rfx|nsc|jpeg]] Bitmap codec cache" },
@@ -200,7 +200,8 @@ static const COMMAND_LINE_ARGUMENT_A global_cmd_args[] = {
 	  "Consume multitouch input locally" },
 #ifdef WITH_GFX_H264
 	{ "gfx", COMMAND_LINE_VALUE_OPTIONAL,
-	  "[[RFX|AVC420|AVC444],mask:<value>,small-cache[:on|off],thin-client[:on|off],progressive[:on|"
+	  "[[progressive[:on|off]|RFX[:on|off]|AVC420[:on|off]AVC444[:on|off]],mask:<value>,small-"
+	  "cache[:on|off],thin-client[:on|off],progressive[:on|"
 	  "off]]",
 	  NULL, NULL, -1, NULL, "RDP8 graphics pipeline" },
 #if defined(WITH_FREERDP_DEPRECATED_COMMANDLINE)
@@ -209,8 +210,9 @@ static const COMMAND_LINE_ARGUMENT_A global_cmd_args[] = {
 #endif
 #else
 	{ "gfx", COMMAND_LINE_VALUE_OPTIONAL,
-	  "RFX,mask:<value>,small-cache[:on|off],thin-client[:on|off],progressive[:on|off]]", NULL,
-	  NULL, -1, NULL, "RDP8 graphics pipeline" },
+	  "[progressive[:on|off]|RFX[:on|off]|AVC420[:on|off]AVC444[:on|off]],mask:<value>,small-cache["
+	  ":on|off],thin-client[:on|off],progressive[:on|off]]",
+	  NULL, NULL, -1, NULL, "RDP8 graphics pipeline" },
 #endif
 #if defined(WITH_FREERDP_DEPRECATED_COMMANDLINE)
 	{ "gfx-progressive", COMMAND_LINE_VALUE_BOOL, NULL, BoolValueFalse, NULL, -1, NULL,
@@ -256,11 +258,11 @@ static const COMMAND_LINE_ARGUMENT_A global_cmd_args[] = {
 	  "[layout:[0x<id>|<name>],lang:<0x<id>>,fn-key:<value>,type:<value>,subtype:<value>,unicode[:"
 	  "on|off],remap:<key1>=<value1>,remap:<key2>=<value2>,pipe:<filename>]",
 	  NULL, NULL, -1, NULL,
-	  "Keyboard related options:"
-	  "* layout: set the keybouard layout announced to the server"
-	  "* lang: set the keyboard language identifier sent to the server"
-	  "* fn-key: Function key value"
-	  "* pipe: Name of a named pipe that can be used to type text into the RDP session" },
+	  "Keyboard related options:\n"
+	  " * layout: set the keybouard layout announced to the server\n"
+	  " * lang: set the keyboard language identifier sent to the server\n"
+	  " * fn-key: Function key value\n"
+	  " * pipe: Name of a named pipe that can be used to type text into the RDP session\n" },
 #if defined(WITH_FREERDP_DEPRECATED_COMMANDLINE)
 	{ "kbd-lang", COMMAND_LINE_VALUE_REQUIRED, "0x<id>", NULL, NULL, -1, NULL,
 	  "[DEPRECATED, use / kbd:lang:<value>] Keyboard active language identifier" },
@@ -323,9 +325,9 @@ static const COMMAND_LINE_ARGUMENT_A global_cmd_args[] = {
 	  "Send mouse motion with relative addressing" },
 	{ "mouse", COMMAND_LINE_VALUE_REQUIRED, "[relative:[on|off],grab:[on|off]]", NULL, NULL, -1,
 	  NULL,
-	  "Mouse related options:"
-	  "* relative:   send relative mouse movements if supported by server"
-	  "* grab:       grab the mouse if within the window" },
+	  "Mouse related options:\n"
+	  " * relative:   send relative mouse movements if supported by server\n"
+	  " * grab:       grab the mouse if within the window" },
 #if defined(CHANNEL_TSMF_CLIENT)
 	{ "multimedia", COMMAND_LINE_VALUE_OPTIONAL, "[sys:<sys>,][dev:<dev>,][decoder:<decoder>]",
 	  NULL, NULL, -1, "mmr", "[DEPRECATED], use /video] Redirect multimedia (video)" },
@@ -452,10 +454,10 @@ static const COMMAND_LINE_ARGUMENT_A global_cmd_args[] = {
 	{ "tls", COMMAND_LINE_VALUE_REQUIRED, "[ciphers|seclevel|secrets-file|enforce]", NULL, NULL, -1,
 	  NULL,
 	  "TLS configuration options:"
-	  " * ciphers:[netmon|ma|<cipher names>]"
+	  " * ciphers:[netmon|ma|<cipher names>]\n"
 	  " * seclevel:<level>, default: 1, range: [0-5] Override the default TLS security level, "
-	  "might be required for older target servers"
-	  " * secrets-file:<filename>"
+	  "might be required for older target servers\n"
+	  " * secrets-file:<filename>\n"
 	  " * enforce[:[ssl3|1.0|1.1|1.2|1.3]] Force use of SSL/TLS version for a connection. Some "
 	  "servers have a buggy TLS "
 	  "version negotiation and might fail without this. Defaults to TLS 1.2 if no argument is "

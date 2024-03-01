@@ -19,6 +19,8 @@
 
 #include <freerdp/config.h>
 
+#include "settings.h"
+
 #include <winpr/assert.h>
 
 #include <freerdp/utils/pcap.h>
@@ -195,7 +197,7 @@ static BOOL update_recv_surfcmd_frame_marker(rdpUpdate* update, wStream* s)
 
 int update_recv_surfcmds(rdpUpdate* update, wStream* s)
 {
-	UINT16 cmdType;
+	UINT16 cmdType = 0;
 	rdp_update_internal* up = update_cast(update);
 
 	WINPR_ASSERT(s);
@@ -291,7 +293,7 @@ static BOOL update_write_surfcmd_bitmap_ex(wStream* s, const TS_BITMAP_DATA_EX* 
 
 BOOL update_write_surfcmd_surface_bits(wStream* s, const SURFACE_BITS_COMMAND* cmd)
 {
-	UINT16 cmdType;
+	UINT16 cmdType = 0;
 	if (!Stream_EnsureRemainingCapacity(s, SURFCMD_SURFACE_BITS_HEADER_LENGTH))
 		return FALSE;
 

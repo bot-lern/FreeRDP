@@ -21,6 +21,8 @@
 
 #include <freerdp/config.h>
 
+#include "settings.h"
+
 #include <winpr/crt.h>
 #include <freerdp/log.h>
 #include <freerdp/crypto/certificate.h>
@@ -122,7 +124,7 @@ static BOOL redirection_copy_array(char*** dst, UINT32* plen, const char** str, 
 	if (!str || (len == 0))
 		return TRUE;
 
-	*dst = calloc(len, sizeof(char));
+	*dst = calloc(len, sizeof(char*));
 	if (!*dst)
 		return FALSE;
 	*plen = len;
@@ -190,17 +192,6 @@ static BOOL rdp_redirection_read_unicode_string(wStream* s, char** str, size_t m
 		return FALSE;
 	}
 
-	return TRUE;
-}
-
-static BOOL replace_char(char* utf8, size_t length, char what, char with)
-{
-	for (size_t x = 0; x < length; x++)
-	{
-		char* cur = &utf8[x];
-		if (*cur == what)
-			*cur = with;
-	}
 	return TRUE;
 }
 
@@ -444,10 +435,9 @@ static BOOL rdp_redirection_read_target_cert_stream(wStream* s, rdpRedirection* 
 
 	WINPR_ASSERT(redirection);
 
-	if (!rdp_redirection_read_base64_wchar(LB_TARGET_CERTIFICATE, s, &length, &ptr))
-		return FALSE;
-
-	const BOOL rc = rdp_redirection_read_target_cert(&redirection->TargetCertificate, ptr, length);
+	BOOL rc = FALSE;
+	if (rdp_redirection_read_base64_wchar(LB_TARGET_CERTIFICATE, s, &length, &ptr))
+		rc = rdp_redirection_read_target_cert(&redirection->TargetCertificate, ptr, length);
 	free(ptr);
 	return rc;
 }

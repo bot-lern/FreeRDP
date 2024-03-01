@@ -19,6 +19,9 @@
  */
 
 #include <freerdp/config.h>
+#include <freerdp/version.h>
+
+#include "../settings.h"
 
 #include <winpr/assert.h>
 
@@ -48,7 +51,6 @@
 #include "../../crypto/opensslcompat.h"
 #include "rpc_fault.h"
 #include "../utils.h"
-#include "../settings.h"
 #include "../redirection.h"
 
 //#define WITH_AAD
@@ -89,7 +91,8 @@ static BOOL arm_tls_connect(rdpArm* arm, rdpTls* tls, int timeout)
 		return FALSE;
 
 	UINT16 peerPort = (UINT16)freerdp_settings_get_uint32(settings, FreeRDP_GatewayPort);
-	const char *proxyUsername, *proxyPassword;
+	const char* proxyUsername = NULL;
+	const char* proxyPassword = NULL;
 	BOOL isProxyConnection =
 	    proxy_prepare(settings, &peerHostname, &peerPort, &proxyUsername, &proxyPassword);
 
@@ -162,7 +165,7 @@ static wStream* arm_build_http_request(rdpArm* arm, const char* method,
 {
 	wStream* s = NULL;
 	HttpRequest* request = NULL;
-	const char* uri;
+	const char* uri = NULL;
 
 	WINPR_ASSERT(arm);
 	WINPR_ASSERT(method);
@@ -339,8 +342,8 @@ static WINPR_CIPHER_CTX* treatAuthBlob(const BYTE* pbInput, size_t cbInput)
 	WINPR_CIPHER_CTX* ret = NULL;
 	char algoName[100] = { 0 };
 
-	SSIZE_T algoSz =
-	    ConvertWCharNToUtf8((WCHAR*)pbInput, cbInput / sizeof(WCHAR), algoName, sizeof(algoName));
+	SSIZE_T algoSz = ConvertWCharNToUtf8((const WCHAR*)pbInput, cbInput / sizeof(WCHAR), algoName,
+	                                     sizeof(algoName));
 	if (algoSz <= 0)
 	{
 		WLog_ERR(TAG, "invalid algoName");
@@ -440,7 +443,7 @@ static BOOL arm_stringEncodeW(const BYTE* pin, size_t cbIn, BYTE** ppOut, size_t
 		return FALSE;
 
 	/* and then convert to Unicode */
-	size_t outSz;
+	size_t outSz = 0;
 	*ppOut = (BYTE*)ConvertUtf8NToWCharAlloc(b64encoded, strlen(b64encoded), &outSz);
 	free(b64encoded);
 
@@ -601,20 +604,20 @@ static BOOL arm_treat_azureInstanceNetworkMetadata(const char* metadata, rdpSett
 		return FALSE;
 	}
 
-	const cJSON* interface = cJSON_GetObjectItem(json, "interface");
-	if (!interface)
+	const cJSON* iface = cJSON_GetObjectItem(json, "interface");
+	if (!iface)
 	{
 		ret = TRUE;
 		goto out;
 	}
 
-	if (!cJSON_IsArray(interface))
+	if (!cJSON_IsArray(iface))
 	{
 		WLog_ERR(TAG, "expecting interface to be an Array");
 		goto out;
 	}
 
-	int interfaceSz = cJSON_GetArraySize(interface);
+	int interfaceSz = cJSON_GetArraySize(iface);
 	if (interfaceSz == 0)
 	{
 		WLog_WARN(TAG, "no addresses in azure instance metadata");
@@ -624,7 +627,7 @@ static BOOL arm_treat_azureInstanceNetworkMetadata(const char* metadata, rdpSett
 
 	for (int i = 0; i < interfaceSz; i++)
 	{
-		const cJSON* interN = cJSON_GetArrayItem(interface, i);
+		const cJSON* interN = cJSON_GetArrayItem(iface, i);
 		if (!interN)
 			continue;
 
@@ -792,7 +795,7 @@ static BOOL arm_fill_gateway_parameters(rdpArm* arm, const char* message, size_t
 static BOOL arm_handle_request_ok(rdpArm* arm, const HttpResponse* response)
 {
 	const size_t len = http_response_get_body_length(response);
-	const char* msg = http_response_get_body(response);
+	const char* msg = (const char*)http_response_get_body(response);
 	if (strnlen(msg, len + 1) > len)
 		return FALSE;
 
@@ -810,7 +813,7 @@ static BOOL arm_handle_bad_request(rdpArm* arm, const HttpResponse* response, BO
 	BOOL rc = FALSE;
 
 	const size_t len = http_response_get_body_length(response);
-	const char* msg = http_response_get_body(response);
+	const char* msg = (const char*)http_response_get_body(response);
 	if (strnlen(msg, len + 1) > len)
 		return FALSE;
 
@@ -863,15 +866,15 @@ static BOOL arm_handle_request(rdpArm* arm, BOOL* retry, DWORD timeout)
 	BOOL rc = FALSE;
 
 	HttpResponse* response = NULL;
-	long StatusCode;
+	long StatusCode = 0;
 
 	if (!http_context_set_uri(arm->http, "/api/arm/v2/connections/") ||
 	    !http_context_set_accept(arm->http, "application/json") ||
 	    !http_context_set_cache_control(arm->http, "no-cache") ||
 	    !http_context_set_pragma(arm->http, "no-cache") ||
 	    !http_context_set_connection(arm->http, "Keep-Alive") ||
-	    !http_context_set_user_agent(arm->http, "FreeRDP/3.0") ||
-	    !http_context_set_x_ms_user_agent(arm->http, "FreeRDP/3.0") ||
+	    !http_context_set_user_agent(arm->http, FREERDP_USER_AGENT) ||
+	    !http_context_set_x_ms_user_agent(arm->http, FREERDP_USER_AGENT) ||
 	    !http_context_set_host(arm->http, freerdp_settings_get_string(arm->context->settings,
 	                                                                  FreeRDP_GatewayHostname)))
 		goto arm_error;

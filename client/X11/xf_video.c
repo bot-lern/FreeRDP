@@ -36,8 +36,8 @@ typedef struct
 static VideoSurface* xfVideoCreateSurface(VideoClientContext* video, UINT32 x, UINT32 y,
                                           UINT32 width, UINT32 height)
 {
-	xfContext* xfc;
-	xfVideoSurface* ret;
+	xfContext* xfc = NULL;
+	xfVideoSurface* ret = NULL;
 
 	WINPR_ASSERT(video);
 	ret = (xfVideoSurface*)VideoClient_CreateCommonContext(sizeof(xfContext), x, y, width, height);
@@ -64,8 +64,8 @@ static BOOL xfVideoShowSurface(VideoClientContext* video, const VideoSurface* su
                                UINT32 destinationWidth, UINT32 destinationHeight)
 {
 	const xfVideoSurface* xfSurface = (const xfVideoSurface*)surface;
-	xfContext* xfc;
-	const rdpSettings* settings;
+	xfContext* xfc = NULL;
+	const rdpSettings* settings = NULL;
 
 	WINPR_ASSERT(video);
 	WINPR_ASSERT(xfSurface);
@@ -78,7 +78,8 @@ static BOOL xfVideoShowSurface(VideoClientContext* video, const VideoSurface* su
 
 #ifdef WITH_XRENDER
 
-	if (settings->SmartSizing || settings->MultiTouchGestures)
+	if (freerdp_settings_get_bool(settings, FreeRDP_SmartSizing) ||
+	    freerdp_settings_get_bool(settings, FreeRDP_MultiTouchGestures))
 	{
 		XPutImage(xfc->display, xfc->primary, xfc->gc, xfSurface->image, 0, 0, surface->x,
 		          surface->y, surface->w, surface->h);

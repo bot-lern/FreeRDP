@@ -70,14 +70,33 @@ typedef struct
 	DEVMAN* devman;
 	BOOL ignoreInvalidDevices;
 
+	UINT32 serverOsType;
+	UINT32 serverOsVersion;
 	UINT16 serverVersionMajor;
 	UINT16 serverVersionMinor;
+	UINT32 serverExtendedPDU;
+	UINT32 serverIOCode1;
+	UINT32 serverIOCode2;
+	UINT32 serverExtraFlags1;
+	UINT32 serverExtraFlags2;
+	UINT32 serverSpecialTypeDeviceCap;
+
+	UINT32 clientOsType;
+	UINT32 clientOsVersion;
 	UINT16 clientVersionMajor;
 	UINT16 clientVersionMinor;
+	UINT32 clientExtendedPDU;
+	UINT32 clientIOCode1;
+	UINT32 clientIOCode2;
+	UINT32 clientExtraFlags1;
+	UINT32 clientExtraFlags2;
+	UINT32 clientSpecialTypeDeviceCap;
+
 	UINT32 clientID;
 	char computerName[256];
 
 	UINT32 sequenceId;
+	BOOL userLoggedOn;
 
 	/* hotplug support */
 	HANDLE hotplugThread;
@@ -93,6 +112,7 @@ typedef struct
 	rdpContext* rdpcontext;
 	wStreamPool* pool;
 	wLog* log;
+	BOOL async;
 } rdpdrPlugin;
 
 BOOL rdpdr_state_advance(rdpdrPlugin* rdpdr, enum RDPDR_CHANNEL_STATE next);

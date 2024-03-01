@@ -58,7 +58,7 @@ typedef struct
 static INLINE void progressive_component_codec_quant_read(wStream* s,
                                                           RFX_COMPONENT_CODEC_QUANT* quantVal)
 {
-	BYTE b;
+	BYTE b = 0;
 	Stream_Read_UINT8(s, b);
 	quantVal->LL3 = b & 0x0F;
 	quantVal->HL3 = b >> 4;
@@ -319,7 +319,7 @@ static INLINE BOOL progressive_rfx_quant_cmp_equal(const RFX_COMPONENT_CODEC_QUA
 static INLINE BOOL progressive_set_surface_data(PROGRESSIVE_CONTEXT* progressive, UINT16 surfaceId,
                                                 void* pData)
 {
-	ULONG_PTR key;
+	ULONG_PTR key = 0;
 	key = ((ULONG_PTR)surfaceId) + 1;
 
 	if (pData)
@@ -354,14 +354,13 @@ static void progressive_tile_free(RFX_PROGRESSIVE_TILE* tile)
 static void progressive_surface_context_free(void* ptr)
 {
 	PROGRESSIVE_SURFACE_CONTEXT* surface = ptr;
-	UINT32 index;
 
 	if (!surface)
 		return;
 
 	if (surface->tiles)
 	{
-		for (index = 0; index < surface->tilesSize; index++)
+		for (size_t index = 0; index < surface->tilesSize; index++)
 		{
 			RFX_PROGRESSIVE_TILE* tile = surface->tiles[index];
 			progressive_tile_free(tile);
@@ -473,9 +472,9 @@ static BOOL progressive_surface_tile_replace(PROGRESSIVE_SURFACE_CONTEXT* surfac
                                              PROGRESSIVE_BLOCK_REGION* region,
                                              const RFX_PROGRESSIVE_TILE* tile, BOOL upgrade)
 {
-	RFX_PROGRESSIVE_TILE* t;
+	RFX_PROGRESSIVE_TILE* t = NULL;
 
-	size_t zIdx;
+	size_t zIdx = 0;
 	if (!surface || !tile)
 		return FALSE;
 
@@ -603,14 +602,15 @@ static INLINE void progressive_rfx_idwt_x(const INT16* pLowBand, size_t nLowStep
                                           size_t nDstStep, size_t nLowCount, size_t nHighCount,
                                           size_t nDstCount)
 {
-	size_t i;
-	INT16 L0;
-	INT16 H0, H1;
-	INT16 X0, X1, X2;
+	INT16 L0 = 0;
+	INT16 H0 = 0;
+	INT16 H1 = 0;
+	INT16 X0 = 0;
+	INT16 X1 = 0;
+	INT16 X2 = 0;
 
-	for (i = 0; i < nDstCount; i++)
+	for (size_t i = 0; i < nDstCount; i++)
 	{
-		size_t j;
 		const INT16* pL = pLowBand;
 		const INT16* pH = pHighBand;
 		INT16* pX = pDstBand;
@@ -619,7 +619,7 @@ static INLINE void progressive_rfx_idwt_x(const INT16* pLowBand, size_t nLowStep
 		X0 = L0 - H0;
 		X2 = L0 - H0;
 
-		for (j = 0; j < (nHighCount - 1); j++)
+		for (size_t j = 0; j < (nHighCount - 1); j++)
 		{
 			H1 = *pH;
 			pH++;
@@ -675,14 +675,15 @@ static INLINE void progressive_rfx_idwt_y(const INT16* pLowBand, size_t nLowStep
                                           size_t nDstStep, size_t nLowCount, size_t nHighCount,
                                           size_t nDstCount)
 {
-	size_t i;
-	INT16 L0;
-	INT16 H0, H1;
-	INT16 X0, X1, X2;
+	INT16 L0 = 0;
+	INT16 H0 = 0;
+	INT16 H1 = 0;
+	INT16 X0 = 0;
+	INT16 X1 = 0;
+	INT16 X2 = 0;
 
-	for (i = 0; i < nDstCount; i++)
+	for (size_t i = 0; i < nDstCount; i++)
 	{
-		size_t j;
 		const INT16* pL = pLowBand;
 		const INT16* pH = pHighBand;
 		INT16* pX = pDstBand;
@@ -693,7 +694,7 @@ static INLINE void progressive_rfx_idwt_y(const INT16* pLowBand, size_t nLowStep
 		X0 = L0 - H0;
 		X2 = L0 - H0;
 
-		for (j = 0; j < (nHighCount - 1); j++)
+		for (size_t j = 0; j < (nHighCount - 1); j++)
 		{
 			H1 = *pH;
 			pH += nHighStep;
@@ -764,11 +765,15 @@ static INLINE size_t progressive_rfx_get_band_h_count(size_t level)
 
 static INLINE void progressive_rfx_dwt_2d_decode_block(INT16* buffer, INT16* temp, size_t level)
 {
-	size_t nDstStepX;
-	size_t nDstStepY;
-	INT16 *HL, *LH;
-	INT16 *HH, *LL;
-	INT16 *L, *H, *LLx;
+	size_t nDstStepX = 0;
+	size_t nDstStepY = 0;
+	INT16* HL = NULL;
+	INT16* LH = NULL;
+	INT16* HH = NULL;
+	INT16* LL = NULL;
+	INT16* L = NULL;
+	INT16* H = NULL;
+	INT16* LLx = NULL;
 
 	const size_t nBandL = progressive_rfx_get_band_l_count(level);
 	const size_t nBandH = progressive_rfx_get_band_h_count(level);
@@ -866,7 +871,7 @@ static INLINE int progressive_rfx_decode_component(PROGRESSIVE_CONTEXT* progress
                                                    INT16* current, INT16* sign, BOOL coeffDiff,
                                                    BOOL subbandDiff, BOOL extrapolate)
 {
-	int status;
+	int status = 0;
 	const primitives_t* prims = primitives_get();
 
 	status = progressive->rfx_context->rlgr_decode(RLGR1, data, length, buffer, 4096);
@@ -912,22 +917,24 @@ static INLINE int progressive_decompress_tile_first(PROGRESSIVE_CONTEXT* progres
                                                     PROGRESSIVE_BLOCK_REGION* region,
                                                     const PROGRESSIVE_BLOCK_CONTEXT* context)
 {
-	int rc;
-	BOOL diff, sub, extrapolate;
-	BYTE* pBuffer;
+	int rc = 0;
+	BOOL diff = 0;
+	BOOL sub = 0;
+	BOOL extrapolate = 0;
+	BYTE* pBuffer = NULL;
 	INT16* pSign[3];
 	INT16* pSrcDst[3];
 	INT16* pCurrent[3];
 	RFX_COMPONENT_CODEC_QUANT shiftY = { 0 };
 	RFX_COMPONENT_CODEC_QUANT shiftCb = { 0 };
 	RFX_COMPONENT_CODEC_QUANT shiftCr = { 0 };
-	RFX_COMPONENT_CODEC_QUANT* quantY;
-	RFX_COMPONENT_CODEC_QUANT* quantCb;
-	RFX_COMPONENT_CODEC_QUANT* quantCr;
-	RFX_COMPONENT_CODEC_QUANT* quantProgY;
-	RFX_COMPONENT_CODEC_QUANT* quantProgCb;
-	RFX_COMPONENT_CODEC_QUANT* quantProgCr;
-	RFX_PROGRESSIVE_CODEC_QUANT* quantProgVal;
+	RFX_COMPONENT_CODEC_QUANT* quantY = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantCb = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantCr = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantProgY = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantProgCb = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantProgCr = NULL;
+	RFX_PROGRESSIVE_CODEC_QUANT* quantProgVal = NULL;
 	static const prim_size_t roi_64x64 = { 64, 64 };
 	const primitives_t* prims = primitives_get();
 
@@ -1046,11 +1053,11 @@ fail:
 
 static INLINE INT16 progressive_rfx_srl_read(RFX_PROGRESSIVE_UPGRADE_STATE* state, UINT32 numBits)
 {
-	UINT32 k;
-	UINT32 bit;
-	UINT32 max;
-	UINT32 mag;
-	UINT32 sign;
+	UINT32 k = 0;
+	UINT32 bit = 0;
+	UINT32 max = 0;
+	UINT32 mag = 0;
+	UINT32 sign = 0;
 	wBitStream* bs = state->srl;
 
 	if (state->nz)
@@ -1133,9 +1140,9 @@ static INLINE INT16 progressive_rfx_srl_read(RFX_PROGRESSIVE_UPGRADE_STATE* stat
 
 static INLINE int progressive_rfx_upgrade_state_finish(RFX_PROGRESSIVE_UPGRADE_STATE* state)
 {
-	UINT32 pad;
-	wBitStream* srl;
-	wBitStream* raw;
+	UINT32 pad = 0;
+	wBitStream* srl = NULL;
+	wBitStream* raw = NULL;
 	if (!state)
 		return -1;
 
@@ -1162,9 +1169,8 @@ static INLINE int progressive_rfx_upgrade_block(RFX_PROGRESSIVE_UPGRADE_STATE* s
                                                 INT16* sign, UINT32 length, UINT32 shift,
                                                 UINT32 bitPos, UINT32 numBits)
 {
-	UINT32 index;
-	INT16 input;
-	wBitStream* raw;
+	INT16 input = 0;
+	wBitStream* raw = NULL;
 
 	if (!numBits)
 		return 1;
@@ -1173,7 +1179,7 @@ static INLINE int progressive_rfx_upgrade_block(RFX_PROGRESSIVE_UPGRADE_STATE* s
 
 	if (!state->nonLL)
 	{
-		for (index = 0; index < length; index++)
+		for (UINT32 index = 0; index < length; index++)
 		{
 			raw->mask = ((1 << numBits) - 1);
 			input = (INT16)((raw->accumulator >> (32 - numBits)) & raw->mask);
@@ -1184,7 +1190,7 @@ static INLINE int progressive_rfx_upgrade_block(RFX_PROGRESSIVE_UPGRADE_STATE* s
 		return 1;
 	}
 
-	for (index = 0; index < length; index++)
+	for (UINT32 index = 0; index < length; index++)
 	{
 		if (sign[index] > 0)
 		{
@@ -1220,9 +1226,9 @@ static INLINE int progressive_rfx_upgrade_component(
     INT16* buffer, INT16* current, INT16* sign, const BYTE* srlData, UINT32 srlLen,
     const BYTE* rawData, UINT32 rawLen, BOOL coeffDiff, BOOL subbandDiff, BOOL extrapolate)
 {
-	int rc;
-	UINT32 aRawLen;
-	UINT32 aSrlLen;
+	int rc = 0;
+	UINT32 aRawLen = 0;
+	UINT32 aSrlLen = 0;
 	wBitStream s_srl = { 0 };
 	wBitStream s_raw = { 0 };
 	RFX_PROGRESSIVE_UPGRADE_STATE state = { 0 };
@@ -1314,9 +1320,11 @@ static INLINE int progressive_decompress_tile_upgrade(PROGRESSIVE_CONTEXT* progr
                                                       PROGRESSIVE_BLOCK_REGION* region,
                                                       const PROGRESSIVE_BLOCK_CONTEXT* context)
 {
-	int status;
-	BOOL coeffDiff, sub, extrapolate;
-	BYTE* pBuffer;
+	int status = 0;
+	BOOL coeffDiff = 0;
+	BOOL sub = 0;
+	BOOL extrapolate = 0;
+	BYTE* pBuffer = NULL;
 	INT16* pSign[3] = { 0 };
 	INT16* pSrcDst[3] = { 0 };
 	INT16* pCurrent[3] = { 0 };
@@ -1329,13 +1337,13 @@ static INLINE int progressive_decompress_tile_upgrade(PROGRESSIVE_CONTEXT* progr
 	RFX_COMPONENT_CODEC_QUANT yNumBits = { 0 };
 	RFX_COMPONENT_CODEC_QUANT cbNumBits = { 0 };
 	RFX_COMPONENT_CODEC_QUANT crNumBits = { 0 };
-	RFX_COMPONENT_CODEC_QUANT* quantY;
-	RFX_COMPONENT_CODEC_QUANT* quantCb;
-	RFX_COMPONENT_CODEC_QUANT* quantCr;
-	RFX_COMPONENT_CODEC_QUANT* quantProgY;
-	RFX_COMPONENT_CODEC_QUANT* quantProgCb;
-	RFX_COMPONENT_CODEC_QUANT* quantProgCr;
-	RFX_PROGRESSIVE_CODEC_QUANT* quantProg;
+	RFX_COMPONENT_CODEC_QUANT* quantY = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantCb = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantCr = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantProgY = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantProgCb = NULL;
+	RFX_COMPONENT_CODEC_QUANT* quantProgCr = NULL;
+	RFX_PROGRESSIVE_CODEC_QUANT* quantProg = NULL;
 	static const prim_size_t roi_64x64 = { 64, 64 };
 	const primitives_t* prims = primitives_get();
 
@@ -1663,11 +1671,11 @@ static INLINE SSIZE_T progressive_process_tiles(PROGRESSIVE_CONTEXT* progressive
                                                 const PROGRESSIVE_BLOCK_CONTEXT* context)
 {
 	int status = 0;
-	size_t end;
+	size_t end = 0;
 	const size_t start = Stream_GetPosition(s);
-	UINT16 index;
-	UINT16 blockType;
-	UINT32 blockLen;
+	UINT16 index = 0;
+	UINT16 blockType = 0;
+	UINT32 blockLen = 0;
 	UINT32 count = 0;
 	PTP_WORK* work_objects = NULL;
 	PROGRESSIVE_TILE_PROCESS_WORK_PARAM* params = NULL;
@@ -1753,9 +1761,12 @@ static INLINE SSIZE_T progressive_process_tiles(PROGRESSIVE_CONTEXT* progressive
 		return -1044;
 	}
 
-	if (progressive->rfx_context->priv->UseThreads)
 	{
-		work_objects = (PTP_WORK*)winpr_aligned_calloc(region->numTiles, sizeof(PTP_WORK), 32);
+		size_t tcount = 1;
+		if (progressive->rfx_context->priv->UseThreads)
+			tcount = region->numTiles;
+
+		work_objects = (PTP_WORK*)winpr_aligned_calloc(tcount, sizeof(PTP_WORK), 32);
 		if (!work_objects)
 			return -1;
 	}
@@ -1768,7 +1779,7 @@ static INLINE SSIZE_T progressive_process_tiles(PROGRESSIVE_CONTEXT* progressive
 		return -1;
 	}
 
-	for (index = 0; index < region->numTiles; index++)
+	for (UINT32 index = 0; index < region->numTiles; index++)
 	{
 		RFX_PROGRESSIVE_TILE* tile = region->tiles[index];
 		PROGRESSIVE_TILE_PROCESS_WORK_PARAM* param = &params[index];
@@ -1810,7 +1821,7 @@ static INLINE SSIZE_T progressive_process_tiles(PROGRESSIVE_CONTEXT* progressive
 
 	if (progressive->rfx_context->priv->UseThreads)
 	{
-		for (index = 0; index < close_cnt; index++)
+		for (UINT32 index = 0; index < close_cnt; index++)
 		{
 			WaitForThreadpoolWorkCallbacks(work_objects[index], FALSE);
 			CloseThreadpoolWork(work_objects[index]);
@@ -2018,7 +2029,7 @@ static INLINE SSIZE_T progressive_wb_read_region_header(PROGRESSIVE_CONTEXT* pro
                                                         UINT32 blockLen,
                                                         PROGRESSIVE_BLOCK_REGION* region)
 {
-	SSIZE_T len;
+	SSIZE_T len = 0;
 
 	memset(region, 0, sizeof(PROGRESSIVE_BLOCK_REGION));
 	if (!Stream_CheckAndLogRequiredLength(TAG, s, 12))
@@ -2095,8 +2106,8 @@ static INLINE SSIZE_T progressive_wb_read_region_header(PROGRESSIVE_CONTEXT* pro
 static INLINE SSIZE_T progressive_wb_skip_region(PROGRESSIVE_CONTEXT* progressive, wStream* s,
                                                  UINT16 blockType, UINT32 blockLen)
 {
-	SSIZE_T rc;
-	size_t total;
+	SSIZE_T rc = 0;
+	size_t total = 0;
 	PROGRESSIVE_BLOCK_REGION* region = &progressive->region;
 
 	rc = progressive_wb_read_region_header(progressive, s, blockType, blockLen, region);
@@ -2119,14 +2130,14 @@ static INLINE SSIZE_T progressive_wb_region(PROGRESSIVE_CONTEXT* progressive, wS
                                             PROGRESSIVE_BLOCK_REGION* region)
 {
 	SSIZE_T rc = -1;
-	UINT16 boxLeft;
-	UINT16 boxTop;
-	UINT16 boxRight;
-	UINT16 boxBottom;
-	UINT16 idxLeft;
-	UINT16 idxTop;
-	UINT16 idxRight;
-	UINT16 idxBottom;
+	UINT16 boxLeft = 0;
+	UINT16 boxTop = 0;
+	UINT16 boxRight = 0;
+	UINT16 boxBottom = 0;
+	UINT16 idxLeft = 0;
+	UINT16 idxTop = 0;
+	UINT16 idxRight = 0;
+	UINT16 idxBottom = 0;
 	const PROGRESSIVE_BLOCK_CONTEXT* context = &progressive->context;
 
 	if ((progressive->state & FLAG_WBT_FRAME_BEGIN) == 0)
@@ -2237,8 +2248,8 @@ static SSIZE_T progressive_parse_block(PROGRESSIVE_CONTEXT* progressive, wStream
                                        PROGRESSIVE_SURFACE_CONTEXT* surface,
                                        PROGRESSIVE_BLOCK_REGION* region)
 {
-	UINT16 blockType;
-	UINT32 blockLen;
+	UINT16 blockType = 0;
+	UINT32 blockLen = 0;
 	SSIZE_T rc = -1;
 	wStream sub = { 0 };
 
@@ -2439,7 +2450,7 @@ fail:
 BOOL progressive_rfx_write_message_progressive_simple(PROGRESSIVE_CONTEXT* progressive, wStream* s,
                                                       const RFX_MESSAGE* msg)
 {
-	RFX_CONTEXT* context;
+	RFX_CONTEXT* context = NULL;
 
 	WINPR_ASSERT(progressive);
 	WINPR_ASSERT(s);
@@ -2455,8 +2466,9 @@ int progressive_compress(PROGRESSIVE_CONTEXT* progressive, const BYTE* pSrcData,
 	BOOL rc = FALSE;
 	int res = -6;
 	wStream* s = NULL;
-	UINT32 i = 0, numRects = 0;
-	UINT32 x = 0, y = 0;
+	UINT32 numRects = 0;
+	UINT32 x = 0;
+	UINT32 y = 0;
 	RFX_RECT* rects = NULL;
 	RFX_MESSAGE* message = NULL;
 
@@ -2504,7 +2516,7 @@ int progressive_compress(PROGRESSIVE_CONTEXT* progressive, const BYTE* pSrcData,
 	if (invalidRegion)
 	{
 		const RECTANGLE_16* region_rects = region16_rects(invalidRegion, NULL);
-		for (x = 0; x < numRects; x++)
+		for (UINT32 x = 0; x < numRects; x++)
 		{
 			const RECTANGLE_16* r = &region_rects[x];
 			RFX_RECT* rect = &rects[x];
@@ -2519,7 +2531,7 @@ int progressive_compress(PROGRESSIVE_CONTEXT* progressive, const BYTE* pSrcData,
 	{
 		x = 0;
 		y = 0;
-		for (i = 0; i < numRects; i++)
+		for (UINT32 i = 0; i < numRects; i++)
 		{
 			RFX_RECT* r = &rects[i];
 			r->x = x;

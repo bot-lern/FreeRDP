@@ -127,8 +127,8 @@ typedef struct
 } FASTPATH_UPDATE_HEADER;
 
 FREERDP_LOCAL BOOL fastpath_read_header_rdp(rdpFastPath* fastpath, wStream* s, UINT16* length);
-FREERDP_LOCAL int fastpath_recv_updates(rdpFastPath* fastpath, wStream* s);
-FREERDP_LOCAL int fastpath_recv_inputs(rdpFastPath* fastpath, wStream* s);
+FREERDP_LOCAL state_run_t fastpath_recv_updates(rdpFastPath* fastpath, wStream* s);
+FREERDP_LOCAL state_run_t fastpath_recv_inputs(rdpFastPath* fastpath, wStream* s);
 
 FREERDP_LOCAL BOOL fastpath_decrypt(rdpFastPath* fastpath, wStream* s, UINT16* length);
 
@@ -139,7 +139,10 @@ FREERDP_LOCAL BOOL fastpath_send_multiple_input_pdu(rdpFastPath* fastpath, wStre
                                                     size_t iEventCount);
 FREERDP_LOCAL BOOL fastpath_send_input_pdu(rdpFastPath* fastpath, wStream* s);
 
+WINPR_ATTR_MALLOC(Stream_Release, 1)
 FREERDP_LOCAL wStream* fastpath_update_pdu_init(rdpFastPath* fastpath);
+
+WINPR_ATTR_MALLOC(Stream_Free, 1)
 FREERDP_LOCAL wStream* fastpath_update_pdu_init_new(rdpFastPath* fastpath);
 FREERDP_LOCAL BOOL fastpath_send_update_pdu(rdpFastPath* fastpath, BYTE updateCode, wStream* s,
                                             BOOL skipCompression);

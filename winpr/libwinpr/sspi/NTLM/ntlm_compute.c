@@ -154,7 +154,7 @@ void ntlm_print_version_info(const NTLM_VERSION_INFO* versionInfo)
 
 static BOOL ntlm_read_ntlm_v2_client_challenge(wStream* s, NTLMv2_CLIENT_CHALLENGE* challenge)
 {
-	size_t size;
+	size_t size = 0;
 	WINPR_ASSERT(s);
 	WINPR_ASSERT(challenge);
 
@@ -193,7 +193,7 @@ static BOOL ntlm_read_ntlm_v2_client_challenge(wStream* s, NTLMv2_CLIENT_CHALLEN
 static BOOL ntlm_write_ntlm_v2_client_challenge(wStream* s,
                                                 const NTLMv2_CLIENT_CHALLENGE* challenge)
 {
-	ULONG length;
+	ULONG length = 0;
 
 	WINPR_ASSERT(s);
 	WINPR_ASSERT(challenge);
@@ -280,7 +280,7 @@ static BOOL ntlm_fetch_ntlm_v2_hash(NTLM_CONTEXT* context, BYTE* hash)
 	BOOL rc = FALSE;
 	WINPR_SAM* sam = NULL;
 	WINPR_SAM_ENTRY* entry = NULL;
-	SSPI_CREDENTIALS* credentials;
+	SSPI_CREDENTIALS* credentials = NULL;
 
 	WINPR_ASSERT(context);
 	WINPR_ASSERT(hash);
@@ -360,7 +360,7 @@ static int ntlm_convert_password_hash(NTLM_CONTEXT* context, BYTE* hash)
 
 static BOOL ntlm_compute_ntlm_v2_hash(NTLM_CONTEXT* context, BYTE* hash)
 {
-	SSPI_CREDENTIALS* credentials;
+	SSPI_CREDENTIALS* credentials = NULL;
 
 	WINPR_ASSERT(context);
 	WINPR_ASSERT(hash);
@@ -419,8 +419,9 @@ static BOOL ntlm_compute_ntlm_v2_hash(NTLM_CONTEXT* context, BYTE* hash)
 	}
 	else if (context->HashCallback)
 	{
-		int ret;
-		SecBuffer proofValue, micValue;
+		int ret = 0;
+		SecBuffer proofValue;
+		SecBuffer micValue;
 
 		if (ntlm_computeProofValue(context, &proofValue) != SEC_E_OK)
 			return FALSE;
@@ -449,7 +450,7 @@ static BOOL ntlm_compute_ntlm_v2_hash(NTLM_CONTEXT* context, BYTE* hash)
 
 BOOL ntlm_compute_lm_v2_response(NTLM_CONTEXT* context)
 {
-	BYTE* response;
+	BYTE* response = NULL;
 	BYTE value[WINPR_MD5_DIGEST_LENGTH] = { 0 };
 
 	WINPR_ASSERT(context);
@@ -497,10 +498,10 @@ BOOL ntlm_compute_lm_v2_response(NTLM_CONTEXT* context)
 
 BOOL ntlm_compute_ntlm_v2_response(NTLM_CONTEXT* context)
 {
-	BYTE* blob;
+	BYTE* blob = NULL;
 	SecBuffer ntlm_v2_temp = { 0 };
 	SecBuffer ntlm_v2_temp_chal = { 0 };
-	PSecBuffer TargetInfo;
+	PSecBuffer TargetInfo = NULL;
 
 	WINPR_ASSERT(context);
 
@@ -706,7 +707,7 @@ static BOOL ntlm_generate_signing_key(BYTE* exported_session_key, const SecBuffe
                                       BYTE* signing_key)
 {
 	BOOL rc = FALSE;
-	size_t length;
+	size_t length = 0;
 	BYTE* value = NULL;
 
 	WINPR_ASSERT(exported_session_key);

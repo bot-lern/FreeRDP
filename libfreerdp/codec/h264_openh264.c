@@ -76,12 +76,12 @@ static void openh264_trace_callback(H264_CONTEXT* h264, int level, const char* m
 
 static int openh264_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT32 SrcSize)
 {
-	DECODING_STATE state;
+	DECODING_STATE state = dsInvalidArgument;
 	SBufferInfo sBufferInfo = { 0 };
-	SSysMEMBuffer* pSystemBuffer;
-	H264_CONTEXT_OPENH264* sys;
-	UINT32* iStride;
-	BYTE** pYUVData;
+	SSysMEMBuffer* pSystemBuffer = NULL;
+	H264_CONTEXT_OPENH264* sys = NULL;
+	UINT32* iStride = NULL;
+	BYTE** pYUVData = NULL;
 
 	WINPR_ASSERT(h264);
 	WINPR_ASSERT(pSrcData || (SrcSize == 0));
@@ -182,12 +182,11 @@ static int openh264_decompress(H264_CONTEXT* h264, const BYTE* pSrcData, UINT32 
 static int openh264_compress(H264_CONTEXT* h264, const BYTE** pYUVData, const UINT32* iStride,
                              BYTE** ppDstData, UINT32* pDstSize)
 {
-	int i, j;
-	int status;
+	int status = 0;
 	SFrameBSInfo info = { 0 };
 	SSourcePicture pic = { 0 };
 
-	H264_CONTEXT_OPENH264* sys;
+	H264_CONTEXT_OPENH264* sys = NULL;
 
 	WINPR_ASSERT(h264);
 	WINPR_ASSERT(pYUVData);
@@ -374,9 +373,9 @@ static int openh264_compress(H264_CONTEXT* h264, const BYTE** pYUVData, const UI
 	*ppDstData = info.sLayerInfo[0].pBsBuf;
 	*pDstSize = 0;
 
-	for (i = 0; i < info.iLayerNum; i++)
+	for (int i = 0; i < info.iLayerNum; i++)
 	{
-		for (j = 0; j < info.sLayerInfo[i].iNalCount; j++)
+		for (int j = 0; j < info.sLayerInfo[i].iNalCount; j++)
 		{
 			*pDstSize += info.sLayerInfo[i].pNalLengthInByte[j];
 		}
@@ -387,8 +386,7 @@ static int openh264_compress(H264_CONTEXT* h264, const BYTE** pYUVData, const UI
 
 static void openh264_uninit(H264_CONTEXT* h264)
 {
-	UINT32 x;
-	H264_CONTEXT_OPENH264* sysContexts;
+	H264_CONTEXT_OPENH264* sysContexts = NULL;
 
 	WINPR_ASSERT(h264);
 
@@ -396,7 +394,7 @@ static void openh264_uninit(H264_CONTEXT* h264)
 
 	if (sysContexts)
 	{
-		for (x = 0; x < h264->numSystemData; x++)
+		for (UINT32 x = 0; x < h264->numSystemData; x++)
 		{
 			H264_CONTEXT_OPENH264* sys = &sysContexts[x];
 
@@ -489,11 +487,9 @@ static BOOL openh264_init(H264_CONTEXT* h264)
 {
 #if defined(WITH_OPENH264_LOADING)
 	BOOL success = FALSE;
-	size_t i;
 #endif
-	UINT32 x;
-	long status;
-	H264_CONTEXT_OPENH264* sysContexts;
+	long status = 0;
+	H264_CONTEXT_OPENH264* sysContexts = NULL;
 	static int traceLevel = WELS_LOG_DEBUG;
 #if (OPENH264_MAJOR == 1) && (OPENH264_MINOR <= 5)
 	static EVideoFormatType videoFormat = videoFormatI420;
@@ -512,7 +508,7 @@ static BOOL openh264_init(H264_CONTEXT* h264)
 	h264->pSystemData = (void*)sysContexts;
 #if defined(WITH_OPENH264_LOADING)
 
-	for (i = 0; i < ARRAYSIZE(openh264_library_names); i++)
+	for (size_t i = 0; i < ARRAYSIZE(openh264_library_names); i++)
 	{
 		const char* current = openh264_library_names[i];
 		success = openh264_load_functionpointers(h264, current);
@@ -532,7 +528,7 @@ static BOOL openh264_init(H264_CONTEXT* h264)
 	sysContexts->WelsDestroySVCEncoder = WelsDestroySVCEncoder;
 #endif
 
-	for (x = 0; x < h264->numSystemData; x++)
+	for (UINT32 x = 0; x < h264->numSystemData; x++)
 	{
 		SDecodingParam sDecParam = { 0 };
 		H264_CONTEXT_OPENH264* sys = &sysContexts[x];

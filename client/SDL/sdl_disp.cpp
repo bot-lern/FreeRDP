@@ -34,6 +34,7 @@
 #define TAG CLIENT_TAG("sdl.disp")
 
 #define RESIZE_MIN_DELAY 200 /* minimum delay in ms between two resizes */
+#define MAX_RETRIES 5
 
 BOOL sdlDispContext::settings_changed()
 {
@@ -46,13 +47,16 @@ BOOL sdlDispContext::settings_changed()
 	if (_lastSentHeight != _targetHeight)
 		return TRUE;
 
-	if (_lastSentDesktopOrientation != settings->DesktopOrientation)
+	if (_lastSentDesktopOrientation !=
+	    freerdp_settings_get_uint16(settings, FreeRDP_DesktopOrientation))
 		return TRUE;
 
-	if (_lastSentDesktopScaleFactor != settings->DesktopScaleFactor)
+	if (_lastSentDesktopScaleFactor !=
+	    freerdp_settings_get_uint32(settings, FreeRDP_DesktopScaleFactor))
 		return TRUE;
 
-	if (_lastSentDeviceScaleFactor != settings->DeviceScaleFactor)
+	if (_lastSentDeviceScaleFactor !=
+	    freerdp_settings_get_uint32(settings, FreeRDP_DeviceScaleFactor))
 		return TRUE;
 	/* TODO
 	    if (_fullscreen != _sdl->fullscreen)
@@ -70,9 +74,9 @@ BOOL sdlDispContext::update_last_sent()
 
 	_lastSentWidth = _targetWidth;
 	_lastSentHeight = _targetHeight;
-	_lastSentDesktopOrientation = settings->DesktopOrientation;
-	_lastSentDesktopScaleFactor = settings->DesktopScaleFactor;
-	_lastSentDeviceScaleFactor = settings->DeviceScaleFactor;
+	_lastSentDesktopOrientation = freerdp_settings_get_uint16(settings, FreeRDP_DesktopOrientation);
+	_lastSentDesktopScaleFactor = freerdp_settings_get_uint32(settings, FreeRDP_DesktopScaleFactor);
+	_lastSentDeviceScaleFactor = freerdp_settings_get_uint32(settings, FreeRDP_DeviceScaleFactor);
 	// TODO _fullscreen = _sdl->fullscreen;
 	return TRUE;
 }
@@ -96,9 +100,12 @@ BOOL sdlDispContext::sendResize()
 	if (!settings_changed())
 		return TRUE;
 
-	if (_sdl->fullscreen && (settings->MonitorCount > 0))
+	const UINT32 mcount = freerdp_settings_get_uint32(settings, FreeRDP_MonitorCount);
+	if (_sdl->fullscreen && (mcount > 0))
 	{
-		if (sendLayout(settings->MonitorDefArray, settings->MonitorCount) != CHANNEL_RC_OK)
+		auto monitors = static_cast<const rdpMonitor*>(
+		    freerdp_settings_get_pointer(settings, FreeRDP_MonitorDefArray));
+		if (sendLayout(monitors, mcount) != CHANNEL_RC_OK)
 			return FALSE;
 	}
 	else
@@ -108,9 +115,10 @@ BOOL sdlDispContext::sendResize()
 		layout.Top = layout.Left = 0;
 		layout.Width = _targetWidth;
 		layout.Height = _targetHeight;
-		layout.Orientation = settings->DesktopOrientation;
-		layout.DesktopScaleFactor = settings->DesktopScaleFactor;
-		layout.DeviceScaleFactor = settings->DeviceScaleFactor;
+		layout.Orientation = freerdp_settings_get_uint16(settings, FreeRDP_DesktopOrientation);
+		layout.DesktopScaleFactor =
+		    freerdp_settings_get_uint32(settings, FreeRDP_DesktopScaleFactor);
+		layout.DeviceScaleFactor = freerdp_settings_get_uint32(settings, FreeRDP_DeviceScaleFactor);
 		layout.PhysicalWidth = _targetWidth;
 		layout.PhysicalHeight = _targetHeight;
 
@@ -155,14 +163,14 @@ void sdlDispContext::OnActivated(void* context, const ActivatedEventArgs* e)
 
 	sdlDisp->_waitingResize = FALSE;
 
-	if (sdlDisp->_activated && !settings->Fullscreen)
+	if (sdlDisp->_activated && !freerdp_settings_get_bool(settings, FreeRDP_Fullscreen))
 	{
 		sdlDisp->set_window_resizable();
 
 		if (e->firstActivation)
 			return;
 
-		sdlDisp->sendResize();
+		sdlDisp->addTimer();
 	}
 }
 
@@ -178,27 +186,43 @@ void sdlDispContext::OnGraphicsReset(void* context, const GraphicsResetEventArgs
 
 	sdlDisp->_waitingResize = FALSE;
 
-	if (sdlDisp->_activated && !settings->Fullscreen)
+	if (sdlDisp->_activated && !freerdp_settings_get_bool(settings, FreeRDP_Fullscreen))
 	{
 		sdlDisp->set_window_resizable();
-		sdlDisp->sendResize();
+		sdlDisp->addTimer();
 	}
 }
 
-void sdlDispContext::OnTimer(void* context, const TimerEventArgs* e)
+Uint32 sdlDispContext::OnTimer(Uint32 interval, void* param)
 {
-	SdlContext* sdl = nullptr;
+	auto ctx = static_cast<sdlDispContext*>(param);
+	if (!ctx)
+		return 0;
+
+	SdlContext* sdl = ctx->_sdl;
 	sdlDispContext* sdlDisp = nullptr;
 	rdpSettings* settings = nullptr;
 
-	WINPR_UNUSED(e);
-	if (!sdl_disp_check_context(context, &sdl, &sdlDisp, &settings))
-		return;
+	if (!sdl_disp_check_context(sdl->context(), &sdl, &sdlDisp, &settings))
+		return 0;
 
-	if (!sdlDisp->_activated || settings->Fullscreen)
-		return;
+	WLog_Print(sdl->log, WLOG_TRACE, "checking for display changes...");
+	if (!sdlDisp->_activated || freerdp_settings_get_bool(settings, FreeRDP_Fullscreen))
+		return 0;
+	else
+	{
+		auto rc = sdlDisp->sendResize();
+		if (!rc)
+			WLog_Print(sdl->log, WLOG_TRACE, "sent new display layout, result %d", rc);
+	}
+	if (sdlDisp->_timer_retries++ >= MAX_RETRIES)
+	{
+		WLog_Print(sdl->log, WLOG_TRACE, "deactivate timer, retries exceeded");
+		return 0;
+	}
 
-	sdlDisp->sendResize();
+	WLog_Print(sdl->log, WLOG_TRACE, "fire timer one more time");
+	return interval;
 }
 
 UINT sdlDispContext::sendLayout(const rdpMonitor* monitors, size_t nmonitors)
@@ -255,14 +279,30 @@ UINT sdlDispContext::sendLayout(const rdpMonitor* monitors, size_t nmonitors)
 				break;
 		}
 
-		layout->DesktopScaleFactor = settings->DesktopScaleFactor;
-		layout->DeviceScaleFactor = settings->DeviceScaleFactor;
+		layout->DesktopScaleFactor =
+		    freerdp_settings_get_uint32(settings, FreeRDP_DesktopScaleFactor);
+		layout->DeviceScaleFactor =
+		    freerdp_settings_get_uint32(settings, FreeRDP_DeviceScaleFactor);
 	}
 
 	WINPR_ASSERT(_disp);
 	ret = IFCALLRESULT(CHANNEL_RC_OK, _disp->SendMonitorLayout, _disp, layouts.size(),
 	                   layouts.data());
 	return ret;
+}
+
+BOOL sdlDispContext::addTimer()
+{
+	if (SDL_WasInit(SDL_INIT_TIMER) == 0)
+		return FALSE;
+
+	SDL_RemoveTimer(_timer);
+	WLog_Print(_sdl->log, WLOG_TRACE, "adding new display check timer");
+
+	_timer_retries = 0;
+	sendResize();
+	_timer = SDL_AddTimer(1000, sdlDispContext::OnTimer, this);
+	return TRUE;
 }
 
 #if SDL_VERSION_ATLEAST(2, 0, 10)
@@ -293,11 +333,20 @@ BOOL sdlDispContext::handle_window_event(const SDL_WindowEvent* ev)
 {
 	WINPR_ASSERT(ev);
 
+	auto bordered = freerdp_settings_get_bool(_sdl->context()->settings, FreeRDP_Decorations)
+	                    ? SDL_TRUE
+	                    : SDL_FALSE;
+
+	auto it = _sdl->windows.find(ev->windowID);
+	if (it != _sdl->windows.end())
+		it->second.setBordered(bordered);
+
 	switch (ev->event)
 	{
 		case SDL_WINDOWEVENT_HIDDEN:
 		case SDL_WINDOWEVENT_MINIMIZED:
 			gdi_send_suppress_output(_sdl->context()->gdi, TRUE);
+
 			return TRUE;
 
 		case SDL_WINDOWEVENT_EXPOSED:
@@ -311,7 +360,7 @@ BOOL sdlDispContext::handle_window_event(const SDL_WindowEvent* ev)
 		case SDL_WINDOWEVENT_SIZE_CHANGED:
 			_targetWidth = ev->data1;
 			_targetHeight = ev->data2;
-			return sendResize();
+			return addTimer();
 
 		case SDL_WINDOWEVENT_LEAVE:
 			WINPR_ASSERT(_sdl);
@@ -353,7 +402,7 @@ UINT sdlDispContext::DisplayControlCaps(UINT32 maxNumMonitors, UINT32 maxMonitor
 	         maxNumMonitors, maxMonitorAreaFactorA, maxMonitorAreaFactorB);
 	_activated = TRUE;
 
-	if (settings->Fullscreen)
+	if (freerdp_settings_get_bool(settings, FreeRDP_Fullscreen))
 		return CHANNEL_RC_OK;
 
 	WLog_DBG(TAG, "DisplayControlCapsPdu: setting the window as resizable");
@@ -373,7 +422,7 @@ BOOL sdlDispContext::init(DispClientContext* disp)
 	_disp = disp;
 	disp->custom = this;
 
-	if (settings->DynamicResolutionUpdate)
+	if (freerdp_settings_get_bool(settings, FreeRDP_DynamicResolutionUpdate))
 	{
 		disp->DisplayControlCaps = sdlDispContext::DisplayControlCaps;
 	}
@@ -392,8 +441,10 @@ BOOL sdlDispContext::uninit(DispClientContext* disp)
 	return TRUE;
 }
 
-sdlDispContext::sdlDispContext(SdlContext* sdl) : _sdl(sdl)
+sdlDispContext::sdlDispContext(SdlContext* sdl) : _sdl(sdl), _timer(0)
 {
+	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO);
+
 	WINPR_ASSERT(_sdl);
 	WINPR_ASSERT(_sdl->context()->settings);
 	WINPR_ASSERT(_sdl->context()->pubSub);
@@ -401,11 +452,11 @@ sdlDispContext::sdlDispContext(SdlContext* sdl) : _sdl(sdl)
 	auto settings = _sdl->context()->settings;
 	auto pubSub = _sdl->context()->pubSub;
 
-	_lastSentWidth = _targetWidth = settings->DesktopWidth;
-	_lastSentHeight = _targetHeight = settings->DesktopHeight;
+	_lastSentWidth = _targetWidth = freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth);
+	_lastSentHeight = _targetHeight = freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight);
 	PubSub_SubscribeActivated(pubSub, sdlDispContext::OnActivated);
 	PubSub_SubscribeGraphicsReset(pubSub, sdlDispContext::OnGraphicsReset);
-	PubSub_SubscribeTimer(pubSub, sdlDispContext::OnTimer);
+	addTimer();
 }
 
 sdlDispContext::~sdlDispContext()
@@ -415,5 +466,6 @@ sdlDispContext::~sdlDispContext()
 
 	PubSub_UnsubscribeActivated(pubSub, sdlDispContext::OnActivated);
 	PubSub_UnsubscribeGraphicsReset(pubSub, sdlDispContext::OnGraphicsReset);
-	PubSub_UnsubscribeTimer(pubSub, sdlDispContext::OnTimer);
+	SDL_RemoveTimer(_timer);
+	SDL_Quit();
 }

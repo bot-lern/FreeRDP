@@ -17,31 +17,28 @@
 # limitations under the License.
 cmake_minimum_required(VERSION 3.13)
 
-project(xfreerdp-client LANGUAGES C)
+if (NOT FREERDP_DEFAULT_PROJECT_VERSION)
+	set(FREERDP_DEFAULT_PROJECT_VERSION "1.0.0.0")
+endif()
+
+project(xfreerdp
+	LANGUAGES C
+	VERSION ${FREERDP_DEFAULT_PROJECT_VERSION}
+)
+
+message("project ${PROJECT_NAME} is using version ${PROJECT_VERSION}")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
-option(CMAKE_COLOR_MAKEFILE "colorful CMake makefile" ON)
-option(CMAKE_VERBOSE_MAKEFILE "verbose CMake makefile" ON)
-option(CMAKE_POSITION_INDEPENDENT_CODE "build with position independent code (-fPIC or -fPIE)" ON)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/)
-
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "project default" FORCE)
-endif()
+include(CommonConfigOptions)
 
 include(ConfigureFreeRDP)
 
-include(GNUInstallDirsWrapper)
-
-# RPATH configuration
-include(ConfigureRPATH)
-
 find_package(X11 REQUIRED)
 
-include(FindDocBookXSL)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../resources)
 include_directories(${X11_INCLUDE_DIRS})
 include_directories(${OPENSSL_INCLUDE_DIR})
@@ -49,8 +46,6 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 set(SRCS
 	xf_utils.h
 	xf_utils.c
-	xf_gdi.c
-	xf_gdi.h
 	xf_gfx.c
 	xf_gfx.h
 	xf_rail.c
@@ -105,7 +100,9 @@ else()
 		cli/xfreerdp.c xfreerdp.h
 	)
 	add_executable(${PROJECT_NAME} ${SRCS})
-	set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "xfreerdp")
+	if (WITH_BINARY_VERSIONING)
+		set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}${PROJECT_VERSION_MAJOR}")
+	endif()
 	include_directories(..)
 endif()
 
@@ -113,52 +110,7 @@ set(LIBS
 	${X11_LIBRARIES}
 )
 
-if(WITH_MANPAGES)
-	find_program(XSLTPROC_EXECUTABLE NAMES xsltproc REQUIRED)
-	if (NOT DOCBOOKXSL_FOUND)
-		message(FATAL_ERROR "docbook xsl not found but required for manpage generation")
-	endif()
-
-	# We need the variable ${MAN_TODAY} to contain the current date in ISO
-	# format to replace it in the configure_file step.
-	include(today)
-
-	TODAY(MAN_TODAY)
-
-	configure_file(xfreerdp.1.xml.in xfreerdp.1.xml @ONLY IMMEDIATE)
-
-	# Compile the helper tool with default compiler settings.
-	# We need the include paths though.
-	get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-	set(GENERATE_INCLUDES "")
-	foreach(dir ${dirs})
-		set(GENERATE_INCLUDES ${GENERATE_INCLUDES} -I${dir})
-	endforeach(dir)
-
-	add_custom_command(OUTPUT xfreerdp.1
-				COMMAND ${CMAKE_C_COMPILER} ${GENERATE_INCLUDES}
-					${CMAKE_CURRENT_SOURCE_DIR}/generate_argument_docbook.c
-					-o ${CMAKE_CURRENT_BINARY_DIR}/generate_argument_docbook
-				COMMAND ${CMAKE_CURRENT_BINARY_DIR}/generate_argument_docbook
-				COMMAND ${CMAKE_COMMAND} -E copy
-					${CMAKE_CURRENT_SOURCE_DIR}/xfreerdp-channels.1.xml ${CMAKE_CURRENT_BINARY_DIR}
-				COMMAND ${CMAKE_COMMAND} -E copy
-					${CMAKE_CURRENT_SOURCE_DIR}/xfreerdp-examples.1.xml ${CMAKE_CURRENT_BINARY_DIR}
-				COMMAND ${CMAKE_COMMAND} -E copy
-					${CMAKE_CURRENT_SOURCE_DIR}/xfreerdp-envvar.1.xml ${CMAKE_CURRENT_BINARY_DIR}
-				COMMAND ${XSLTPROC_EXECUTABLE} ${DOCBOOKXSL_DIR}/manpages/docbook.xsl xfreerdp.1.xml
-				WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-				DEPENDS
-					${CMAKE_CURRENT_BINARY_DIR}/xfreerdp.1.xml
-					${CMAKE_CURRENT_SOURCE_DIR}/xfreerdp-examples.1.xml
-					${CMAKE_CURRENT_SOURCE_DIR}/xfreerdp-channels.1.xml
-					${CMAKE_CURRENT_SOURCE_DIR}/xfreerdp-envvar.1.xml)
-
-	add_custom_target(xfreerdp.manpage ALL
-		DEPENDS xfreerdp.1)
-
-	install_freerdp_man(${CMAKE_CURRENT_BINARY_DIR}/xfreerdp.1 1)
-endif(WITH_MANPAGES)
+add_subdirectory(man)
 
 find_package(X11 REQUIRED)
 if(X11_XShm_FOUND)

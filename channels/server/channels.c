@@ -54,6 +54,10 @@
 #include <freerdp/server/rdpgfx.h>
 #include <freerdp/server/disp.h>
 
+#if defined(CHANNEL_RDPEMSC_SERVER)
+#include <freerdp/server/rdpemsc.h>
+#endif /* CHANNEL_RDPEMSC_SERVER */
+
 #if defined(CHANNEL_RDPECAM_SERVER)
 #include <freerdp/server/rdpecam-enumerator.h>
 #include <freerdp/server/rdpecam.h>
@@ -76,26 +80,29 @@ extern void freerdp_channels_dummy(void);
 void freerdp_channels_dummy(void)
 {
 #if defined(CHANNEL_AUDIN_SERVER)
-	audin_server_context* audin;
+	audin_server_context* audin = NULL;
 #endif
-	RdpsndServerContext* rdpsnd;
-	CliprdrServerContext* cliprdr;
-	echo_server_context* echo;
-	RdpdrServerContext* rdpdr;
-	DrdynvcServerContext* drdynvc;
-	RdpeiServerContext* rdpei;
-	RemdeskServerContext* remdesk;
-	EncomspServerContext* encomsp;
-	RailServerContext* rail;
-	TelemetryServerContext* telemetry;
-	RdpgfxServerContext* rdpgfx;
-	DispServerContext* disp;
+	RdpsndServerContext* rdpsnd = NULL;
+	CliprdrServerContext* cliprdr = NULL;
+	echo_server_context* echo = NULL;
+	RdpdrServerContext* rdpdr = NULL;
+	DrdynvcServerContext* drdynvc = NULL;
+	RdpeiServerContext* rdpei = NULL;
+	RemdeskServerContext* remdesk = NULL;
+	EncomspServerContext* encomsp = NULL;
+	RailServerContext* rail = NULL;
+	TelemetryServerContext* telemetry = NULL;
+	RdpgfxServerContext* rdpgfx = NULL;
+	DispServerContext* disp = NULL;
+#if defined(CHANNEL_RDPEMSC_SERVER)
+	MouseCursorServerContext* mouse_cursor = NULL;
+#endif /* CHANNEL_RDPEMSC_SERVER */
 #if defined(CHANNEL_RDPECAM_SERVER)
-	CamDevEnumServerContext* camera_enumerator;
-	CameraDeviceServerContext* camera_device;
+	CamDevEnumServerContext* camera_enumerator = NULL;
+	CameraDeviceServerContext* camera_device = NULL;
 #endif
 #if defined(CHANNEL_LOCATION_SERVER)
-	LocationServerContext* location;
+	LocationServerContext* location = NULL;
 #endif /* CHANNEL_LOCATION_SERVER */
 #ifdef WITH_CHANNEL_GFXREDIR
 	GfxRedirServerContext* gfxredir;
@@ -130,6 +137,11 @@ void freerdp_channels_dummy(void)
 	rdpgfx_server_context_free(rdpgfx);
 	disp = disp_server_context_new(NULL);
 	disp_server_context_free(disp);
+
+#if defined(CHANNEL_RDPEMSC_SERVER)
+	mouse_cursor = mouse_cursor_server_context_new(NULL);
+	mouse_cursor_server_context_free(mouse_cursor);
+#endif /* CHANNEL_RDPEMSC_SERVER */
 
 #if defined(CHANNEL_RDPECAM_SERVER)
 	camera_enumerator = cam_dev_enum_server_context_new(NULL);

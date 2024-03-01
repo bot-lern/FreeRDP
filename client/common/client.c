@@ -43,7 +43,6 @@
 #if defined(CHANNEL_VIDEO_CLIENT)
 #include <freerdp/client/video.h>
 #include <freerdp/channels/video.h>
-#include <freerdp/gdi/video.h>
 #endif
 
 #if defined(CHANNEL_RDPGFX_CLIENT)
@@ -55,24 +54,15 @@
 #if defined(CHANNEL_GEOMETRY_CLIENT)
 #include <freerdp/client/geometry.h>
 #include <freerdp/channels/geometry.h>
+#endif
+
+#if defined(CHANNEL_GEOMETRY_CLIENT) || defined(CHANNEL_VIDEO_CLIENT)
 #include <freerdp/gdi/video.h>
 #endif
 
 #ifdef WITH_AAD
-#include <cjson/cJSON.h>
 #include <freerdp/utils/http.h>
-
-#if CJSON_VERSION_MAJOR == 1
-#if CJSON_VERSION_MINOR <= 7
-#if CJSON_VERSION_PATCH < 13
-#define USE_CJSON_COMPAT
-#endif
-#endif
-#endif
-
-#if defined(USE_CJSON_COMPAT)
-extern cJSON* cJSON_ParseWithLength(const char* value, size_t buffer_length);
-#endif
+#include <freerdp/utils/aad.h>
 #endif
 
 #include <freerdp/log.h>
@@ -93,7 +83,7 @@ static void set_default_callbacks(freerdp* instance)
 
 static BOOL freerdp_client_common_new(freerdp* instance, rdpContext* context)
 {
-	RDP_CLIENT_ENTRY_POINTS* pEntryPoints;
+	RDP_CLIENT_ENTRY_POINTS* pEntryPoints = NULL;
 
 	WINPR_ASSERT(instance);
 	WINPR_ASSERT(context);
@@ -108,7 +98,7 @@ static BOOL freerdp_client_common_new(freerdp* instance, rdpContext* context)
 
 static void freerdp_client_common_free(freerdp* instance, rdpContext* context)
 {
-	RDP_CLIENT_ENTRY_POINTS* pEntryPoints;
+	RDP_CLIENT_ENTRY_POINTS* pEntryPoints = NULL;
 
 	WINPR_ASSERT(instance);
 	WINPR_ASSERT(context);
@@ -122,8 +112,8 @@ static void freerdp_client_common_free(freerdp* instance, rdpContext* context)
 
 rdpContext* freerdp_client_context_new(const RDP_CLIENT_ENTRY_POINTS* pEntryPoints)
 {
-	freerdp* instance;
-	rdpContext* context;
+	freerdp* instance = NULL;
+	rdpContext* context = NULL;
 
 	if (!pEntryPoints)
 		return NULL;
@@ -166,7 +156,7 @@ out_fail:
 
 void freerdp_client_context_free(rdpContext* context)
 {
-	freerdp* instance;
+	freerdp* instance = NULL;
 
 	if (!context)
 		return;
@@ -188,7 +178,7 @@ void freerdp_client_context_free(rdpContext* context)
 
 int freerdp_client_start(rdpContext* context)
 {
-	RDP_CLIENT_ENTRY_POINTS* pEntryPoints;
+	RDP_CLIENT_ENTRY_POINTS* pEntryPoints = NULL;
 
 	if (!context || !context->instance || !context->instance->pClientEntryPoints)
 		return ERROR_BAD_ARGUMENTS;
@@ -202,7 +192,7 @@ int freerdp_client_start(rdpContext* context)
 
 int freerdp_client_stop(rdpContext* context)
 {
-	RDP_CLIENT_ENTRY_POINTS* pEntryPoints;
+	RDP_CLIENT_ENTRY_POINTS* pEntryPoints = NULL;
 
 	if (!context || !context->instance || !context->instance->pClientEntryPoints)
 		return ERROR_BAD_ARGUMENTS;
@@ -231,20 +221,21 @@ static BOOL freerdp_client_settings_post_process(rdpSettings* settings)
 {
 	/* Moved GatewayUseSameCredentials logic outside of cmdline.c, so
 	 * that the rdp file also triggers this functionality */
-	if (settings->GatewayEnabled)
+	if (freerdp_settings_get_bool(settings, FreeRDP_GatewayEnabled))
 	{
-		if (settings->GatewayUseSameCredentials)
+		if (freerdp_settings_get_bool(settings, FreeRDP_GatewayUseSameCredentials))
 		{
-			if (settings->Username)
+			const char* Username = freerdp_settings_get_string(settings, FreeRDP_Username);
+			const char* Domain = freerdp_settings_get_string(settings, FreeRDP_Domain);
+			if (Username)
 			{
-				if (!freerdp_settings_set_string(settings, FreeRDP_GatewayUsername,
-				                                 settings->Username))
+				if (!freerdp_settings_set_string(settings, FreeRDP_GatewayUsername, Username))
 					goto out_error;
 			}
 
-			if (settings->Domain)
+			if (Domain)
 			{
-				if (!freerdp_settings_set_string(settings, FreeRDP_GatewayDomain, settings->Domain))
+				if (!freerdp_settings_set_string(settings, FreeRDP_GatewayDomain, Domain))
 					goto out_error;
 			}
 
@@ -260,37 +251,34 @@ static BOOL freerdp_client_settings_post_process(rdpSettings* settings)
 
 	/* Moved logic for Multimon and Span monitors to force fullscreen, so
 	 * that the rdp file also triggers this functionality */
-	if (settings->SpanMonitors)
+	if (freerdp_settings_get_bool(settings, FreeRDP_SpanMonitors))
 	{
-		settings->UseMultimon = TRUE;
-		settings->Fullscreen = TRUE;
+		freerdp_settings_set_bool(settings, FreeRDP_UseMultimon, TRUE);
+		freerdp_settings_set_bool(settings, FreeRDP_Fullscreen, TRUE);
 	}
-	else if (settings->UseMultimon)
+	else if (freerdp_settings_get_bool(settings, FreeRDP_UseMultimon))
 	{
-		settings->Fullscreen = TRUE;
+		freerdp_settings_set_bool(settings, FreeRDP_Fullscreen, TRUE);
 	}
 
 	/* deal with the smartcard / smartcard logon stuff */
-	if (settings->SmartcardLogon)
+	if (freerdp_settings_get_bool(settings, FreeRDP_SmartcardLogon))
 	{
-		settings->TlsSecurity = TRUE;
-		settings->RedirectSmartCards = TRUE;
-		settings->DeviceRedirection = TRUE;
+		freerdp_settings_set_bool(settings, FreeRDP_TlsSecurity, TRUE);
+		freerdp_settings_set_bool(settings, FreeRDP_RedirectSmartCards, TRUE);
+		freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, TRUE);
 		freerdp_settings_set_bool(settings, FreeRDP_PasswordIsSmartcardPin, TRUE);
 	}
 
 	return TRUE;
 out_error:
-	free(settings->GatewayUsername);
-	free(settings->GatewayDomain);
-	free(settings->GatewayPassword);
 	return FALSE;
 }
 
 int freerdp_client_settings_parse_command_line(rdpSettings* settings, int argc, char** argv,
                                                BOOL allowUnknown)
 {
-	int status;
+	int status = 0;
 
 	if (argc < 1)
 		return 0;
@@ -315,7 +303,7 @@ int freerdp_client_settings_parse_command_line(rdpSettings* settings, int argc, 
 
 int freerdp_client_settings_parse_connection_file(rdpSettings* settings, const char* filename)
 {
-	rdpFile* file;
+	rdpFile* file = NULL;
 	int ret = -1;
 	file = freerdp_client_rdp_file_new();
 
@@ -337,7 +325,7 @@ out:
 int freerdp_client_settings_parse_connection_file_buffer(rdpSettings* settings, const BYTE* buffer,
                                                          size_t size)
 {
-	rdpFile* file;
+	rdpFile* file = NULL;
 	int status = -1;
 	file = freerdp_client_rdp_file_new();
 
@@ -357,7 +345,7 @@ int freerdp_client_settings_parse_connection_file_buffer(rdpSettings* settings, 
 int freerdp_client_settings_write_connection_file(const rdpSettings* settings, const char* filename,
                                                   BOOL unicode)
 {
-	rdpFile* file;
+	rdpFile* file = NULL;
 	int ret = -1;
 	file = freerdp_client_rdp_file_new();
 
@@ -378,18 +366,18 @@ out:
 
 int freerdp_client_settings_parse_assistance_file(rdpSettings* settings, int argc, char* argv[])
 {
-	int status, x;
+	int status = 0;
 	int ret = -1;
-	char* filename;
+	char* filename = NULL;
 	char* password = NULL;
-	rdpAssistanceFile* file;
+	rdpAssistanceFile* file = NULL;
 
 	if (!settings || !argv || (argc < 2))
 		return -1;
 
 	filename = argv[1];
 
-	for (x = 2; x < argc; x++)
+	for (int x = 2; x < argc; x++)
 	{
 		const char* key = strstr(argv[x], "assistance:");
 
@@ -436,7 +424,7 @@ static BOOL client_cli_authenticate_raw(freerdp* instance, rdp_auth_reason reaso
 	const char* auth[] = { "Username:        ", "Domain:          ", "Password:        " };
 	const char* authPin[] = { "Username:        ", "Domain:          ", "Smartcard-Pin:   " };
 	const char* gw[] = { "GatewayUsername: ", "GatewayDomain:   ", "GatewayPassword: " };
-	const char** prompt;
+	const char** prompt = NULL;
 	BOOL pinOnly = FALSE;
 
 	WINPR_ASSERT(instance);
@@ -474,8 +462,9 @@ static BOOL client_cli_authenticate_raw(freerdp* instance, rdp_auth_reason reaso
 
 		if (freerdp_interruptible_get_line(instance->context, username, &username_size, stdin) < 0)
 		{
-			WLog_ERR(TAG, "freerdp_interruptible_get_line returned %s [%d]", strerror(errno),
-			         errno);
+			char ebuffer[256] = { 0 };
+			WLog_ERR(TAG, "freerdp_interruptible_get_line returned %s [%d]",
+			         winpr_strerror(errno, ebuffer, sizeof(ebuffer)), errno);
 			goto fail;
 		}
 
@@ -494,8 +483,9 @@ static BOOL client_cli_authenticate_raw(freerdp* instance, rdp_auth_reason reaso
 
 		if (freerdp_interruptible_get_line(instance->context, domain, &domain_size, stdin) < 0)
 		{
-			WLog_ERR(TAG, "freerdp_interruptible_get_line returned %s [%d]", strerror(errno),
-			         errno);
+			char ebuffer[256] = { 0 };
+			WLog_ERR(TAG, "freerdp_interruptible_get_line returned %s [%d]",
+			         winpr_strerror(errno, ebuffer, sizeof(ebuffer)), errno);
 			goto fail;
 		}
 
@@ -513,8 +503,10 @@ static BOOL client_cli_authenticate_raw(freerdp* instance, rdp_auth_reason reaso
 		if (!*password)
 			goto fail;
 
+		const BOOL fromStdin =
+		    freerdp_settings_get_bool(instance->context->settings, FreeRDP_CredentialsFromStdin);
 		if (freerdp_passphrase_read(instance->context, prompt[2], *password, password_size,
-		                            instance->context->settings->CredentialsFromStdin) == NULL)
+		                            fromStdin) == NULL)
 			goto fail;
 	}
 
@@ -562,7 +554,7 @@ BOOL client_cli_authenticate_ex(freerdp* instance, char** username, char** passw
 BOOL client_cli_choose_smartcard(freerdp* instance, SmartcardCertInfo** cert_list, DWORD count,
                                  DWORD* choice, BOOL gateway)
 {
-	unsigned long answer;
+	unsigned long answer = 0;
 	char* p = NULL;
 
 	printf("Multiple smartcards are available for use:\n");
@@ -606,7 +598,7 @@ BOOL client_cli_choose_smartcard(freerdp* instance, SmartcardCertInfo** cert_lis
 #if defined(WITH_FREERDP_DEPRECATED)
 BOOL client_cli_authenticate(freerdp* instance, char** username, char** password, char** domain)
 {
-	if (instance->settings->SmartcardLogon)
+	if (freerdp_settings_get_bool(instance->settings, FreeRDP_SmartcardLogon))
 	{
 		WLog_INFO(TAG, "Authentication via smartcard");
 		return TRUE;
@@ -623,7 +615,7 @@ BOOL client_cli_gw_authenticate(freerdp* instance, char** username, char** passw
 
 static DWORD client_cli_accept_certificate(freerdp* instance)
 {
-	int answer;
+	int answer = 0;
 
 	WINPR_ASSERT(instance);
 	WINPR_ASSERT(instance->context);
@@ -631,7 +623,9 @@ static DWORD client_cli_accept_certificate(freerdp* instance)
 	const rdpSettings* settings = instance->context->settings;
 	WINPR_ASSERT(settings);
 
-	if (settings->CredentialsFromStdin)
+	const BOOL fromStdin =
+	    freerdp_settings_get_bool(instance->context->settings, FreeRDP_CredentialsFromStdin);
+	if (fromStdin)
 		return 0;
 
 	while (1)
@@ -644,7 +638,7 @@ static DWORD client_cli_accept_certificate(freerdp* instance)
 		{
 			printf("\nError: Could not read answer from stdin.");
 
-			if (settings->CredentialsFromStdin)
+			if (fromStdin)
 				printf(" - Run without parameter \"--from-stdin\" to set trust.");
 
 			printf("\n");
@@ -901,7 +895,7 @@ BOOL client_cli_present_gateway_message(freerdp* instance, UINT32 type, BOOL isD
                                         BOOL isConsentMandatory, size_t length,
                                         const WCHAR* message)
 {
-	int answer;
+	int answer = 0;
 	const char* msgType = (type == GATEWAY_MESSAGE_CONSENT) ? "Consent message" : "Service message";
 
 	WINPR_ASSERT(instance);
@@ -1130,9 +1124,8 @@ BOOL client_common_get_access_token(freerdp* instance, const char* request, char
 	long resp_code = 0;
 	BYTE* response = NULL;
 	size_t response_length = 0;
-	cJSON* json = NULL;
-	cJSON* access_token_prop = NULL;
-	const char* access_token_str = NULL;
+
+	wLog* log = WLog_Get(TAG);
 
 	if (!freerdp_http_request("https://login.microsoftonline.com/common/oauth2/v2.0/token", request,
 	                          &resp_code, &response, &response_length))
@@ -1144,7 +1137,7 @@ BOOL client_common_get_access_token(freerdp* instance, const char* request, char
 	if (resp_code != HTTP_STATUS_OK)
 	{
 		char buffer[64] = { 0 };
-		wLog* log = WLog_Get(TAG);
+
 		WLog_Print(log, WLOG_ERROR,
 		           "Server unwilling to provide access token; returned status code %s",
 		           freerdp_http_status_string_format(resp_code, buffer, sizeof(buffer)));
@@ -1153,36 +1146,11 @@ BOOL client_common_get_access_token(freerdp* instance, const char* request, char
 		goto cleanup;
 	}
 
-	json = cJSON_ParseWithLength((const char*)response, response_length);
-	if (!json)
-	{
-		char buffer[64] = { 0 };
-		WLog_ERR(
-		    TAG, "Failed to parse access token response [got %" PRIuz " bytes, response code %s",
-		    response_length, freerdp_http_status_string_format(resp_code, buffer, sizeof(buffer)));
-		goto cleanup;
-	}
-
-	access_token_prop = cJSON_GetObjectItem(json, "access_token");
-	if (!access_token_prop)
-	{
-		WLog_ERR(TAG, "Response has no \"access_token\" property");
-		goto cleanup;
-	}
-
-	access_token_str = cJSON_GetStringValue(access_token_prop);
-	if (!access_token_str)
-	{
-		WLog_ERR(TAG, "Invalid value for \"access_token\"");
-		goto cleanup;
-	}
-
-	*token = _strdup(access_token_str);
+	*token = freerdp_utils_aad_get_access_token(log, (const char*)response, response_length);
 	if (*token)
 		ret = TRUE;
 
 cleanup:
-	cJSON_Delete(json);
 	free(response);
 	return ret;
 #else
@@ -1199,14 +1167,17 @@ SSIZE_T client_common_retry_dialog(freerdp* instance, const char* what, size_t c
 	WINPR_ASSERT(instance);
 	WINPR_ASSERT(what);
 
-	if (strcmp(what, "arm-transport") != 0)
+	if ((strcmp(what, "arm-transport") != 0) && (strcmp(what, "connection") != 0))
 	{
 		WLog_ERR(TAG, "Unknown module %s, aborting", what);
 		return -1;
 	}
 
 	if (current == 0)
-		WLog_INFO(TAG, "[%s] Starting your VM. It may take up to 5 minutes", what);
+	{
+		if (strcmp(what, "arm-transport") == 0)
+			WLog_INFO(TAG, "[%s] Starting your VM. It may take up to 5 minutes", what);
+	}
 
 	const rdpSettings* settings = instance->context->settings;
 	const BOOL enabled = freerdp_settings_get_bool(settings, FreeRDP_AutoReconnectionEnabled);
@@ -1240,10 +1211,9 @@ BOOL client_auto_reconnect(freerdp* instance)
 BOOL client_auto_reconnect_ex(freerdp* instance, BOOL (*window_events)(freerdp* instance))
 {
 	BOOL retry = TRUE;
-	UINT32 error;
-	UINT32 maxRetries;
+	UINT32 error = 0;
 	UINT32 numRetries = 0;
-	rdpSettings* settings;
+	rdpSettings* settings = NULL;
 
 	if (!instance)
 		return FALSE;
@@ -1253,7 +1223,8 @@ BOOL client_auto_reconnect_ex(freerdp* instance, BOOL (*window_events)(freerdp* 
 	settings = instance->context->settings;
 	WINPR_ASSERT(settings);
 
-	maxRetries = settings->AutoReconnectMaxRetries;
+	const UINT32 maxRetries =
+	    freerdp_settings_get_uint32(settings, FreeRDP_AutoReconnectMaxRetries);
 
 	/* Only auto reconnect on network disconnects. */
 	error = freerdp_error_info(instance);
@@ -1272,7 +1243,7 @@ BOOL client_auto_reconnect_ex(freerdp* instance, BOOL (*window_events)(freerdp* 
 			return FALSE;
 	}
 
-	if (!settings->AutoReconnectionEnabled)
+	if (!freerdp_settings_get_bool(settings, FreeRDP_AutoReconnectionEnabled))
 	{
 		/* No auto-reconnect - just quit */
 		return FALSE;
@@ -1298,6 +1269,8 @@ BOOL client_auto_reconnect_ex(freerdp* instance, BOOL (*window_events)(freerdp* 
 
 		/* Attempt the next reconnect */
 		WLog_INFO(TAG, "Attempting reconnect (%" PRIu32 " of %" PRIu32 ")", numRetries, maxRetries);
+
+		IFCALL(instance->RetryDialog, instance, "connection", numRetries, NULL);
 
 		if (freerdp_reconnect(instance))
 			return TRUE;
@@ -1343,8 +1316,8 @@ int freerdp_client_common_stop(rdpContext* context)
 #if defined(CHANNEL_ENCOMSP_CLIENT)
 BOOL freerdp_client_encomsp_toggle_control(EncomspClientContext* encomsp)
 {
-	rdpClientContext* cctx;
-	BOOL state;
+	rdpClientContext* cctx = NULL;
+	BOOL state = 0;
 
 	if (!encomsp)
 		return FALSE;
@@ -1378,9 +1351,9 @@ static UINT
 client_encomsp_participant_created(EncomspClientContext* context,
                                    const ENCOMSP_PARTICIPANT_CREATED_PDU* participantCreated)
 {
-	rdpClientContext* cctx;
-	rdpSettings* settings;
-	BOOL request;
+	rdpClientContext* cctx = NULL;
+	rdpSettings* settings = NULL;
+	BOOL request = 0;
 
 	if (!context || !context->custom || !participantCreated)
 		return ERROR_INVALID_PARAMETER;
@@ -1538,14 +1511,13 @@ BOOL freerdp_client_send_wheel_event(rdpClientContext* cctx, UINT16 mflags)
 
 	WINPR_ASSERT(cctx);
 
-	if (!freerdp_settings_get_bool(cctx->context.settings, FreeRDP_HasRelativeMouseEvent))
-	{
 #if defined(CHANNEL_AINPUT_CLIENT)
 	if (cctx->ainput)
 	{
-		UINT rc;
+		UINT rc = 0;
 		UINT64 flags = 0;
-		INT32 x = 0, y = 0;
+		INT32 x = 0;
+		INT32 y = 0;
 		INT32 value = mflags & 0xFF;
 
 		if (mflags & PTR_FLAGS_WHEEL_NEGATIVE)
@@ -1573,7 +1545,7 @@ BOOL freerdp_client_send_wheel_event(rdpClientContext* cctx, UINT16 mflags)
 			handled = TRUE;
 	}
 #endif
-	}
+
 	if (!handled)
 		freerdp_input_send_mouse_event(cctx->context.input, mflags, 0, 0);
 
@@ -1583,7 +1555,7 @@ BOOL freerdp_client_send_wheel_event(rdpClientContext* cctx, UINT16 mflags)
 #if defined(CHANNEL_AINPUT_CLIENT)
 static INLINE BOOL ainput_send_diff_event(rdpClientContext* cctx, UINT64 flags, INT32 x, INT32 y)
 {
-	UINT rc;
+	UINT rc = 0;
 
 	WINPR_ASSERT(cctx);
 	WINPR_ASSERT(cctx->ainput);
@@ -1602,7 +1574,8 @@ BOOL freerdp_client_send_button_event(rdpClientContext* cctx, BOOL relative, UIN
 
 	WINPR_ASSERT(cctx);
 
-	if (freerdp_settings_get_bool(cctx->context.settings, FreeRDP_HasRelativeMouseEvent))
+	const BOOL relativeInput = freerdp_client_use_relative_mouse_events(cctx);
+	if (relative && relativeInput)
 	{
 		return freerdp_input_send_rel_mouse_event(cctx->context.input, mflags, x, y);
 	}
@@ -1611,8 +1584,6 @@ BOOL freerdp_client_send_button_event(rdpClientContext* cctx, BOOL relative, UIN
 	if (cctx->ainput)
 	{
 		UINT64 flags = 0;
-		BOOL relativeInput =
-		    freerdp_settings_get_bool(cctx->context.settings, FreeRDP_MouseUseRelativeMove);
 
 		if (cctx->mouse_grabbed && relativeInput)
 			flags |= AINPUT_FLAGS_HAVE_REL;
@@ -1659,7 +1630,7 @@ BOOL freerdp_client_send_extended_button_event(rdpClientContext* cctx, BOOL rela
 	BOOL handled = FALSE;
 	WINPR_ASSERT(cctx);
 
-	if (freerdp_settings_get_bool(cctx->context.settings, FreeRDP_HasRelativeMouseEvent))
+	if (relative && freerdp_client_use_relative_mouse_events(cctx))
 	{
 		return freerdp_input_send_rel_mouse_event(cctx->context.input, mflags, x, y);
 	}
@@ -1721,7 +1692,7 @@ static BOOL freerdp_handle_touch_up(rdpClientContext* cctx, const FreeRDP_TouchC
 	}
 	else
 	{
-		int contactId;
+		int contactId = 0;
 
 		if (rdpei->TouchRawEvent)
 		{
@@ -1773,7 +1744,7 @@ static BOOL freerdp_handle_touch_down(rdpClientContext* cctx, const FreeRDP_Touc
 	}
 	else
 	{
-		int contactId;
+		int contactId = 0;
 
 		if (rdpei->TouchRawEvent)
 		{
@@ -1818,7 +1789,7 @@ static BOOL freerdp_handle_touch_motion(rdpClientContext* cctx, const FreeRDP_To
 	}
 	else
 	{
-		int contactId;
+		int contactId = 0;
 
 		if (rdpei->TouchRawEvent)
 		{
@@ -1911,7 +1882,7 @@ BOOL freerdp_client_load_channels(freerdp* instance)
 
 	if (!freerdp_client_load_addins(instance->context->channels, instance->context->settings))
 	{
-		WLog_ERR(TAG, "Failed to load addins [%l08X]", GetLastError());
+		WLog_ERR(TAG, "Failed to load addins [%08" PRIx32 "]", GetLastError());
 		return FALSE;
 	}
 	return TRUE;
@@ -2167,4 +2138,19 @@ BOOL freerdp_client_is_pen(rdpClientContext* cctx, INT32 deviceid)
 	}
 
 	return FALSE;
+}
+
+BOOL freerdp_client_use_relative_mouse_events(rdpClientContext* ccontext)
+{
+	WINPR_ASSERT(ccontext);
+
+	const rdpSettings* settings = ccontext->context.settings;
+	const BOOL useRelative = freerdp_settings_get_bool(settings, FreeRDP_MouseUseRelativeMove);
+	const BOOL haveRelative = freerdp_settings_get_bool(settings, FreeRDP_HasRelativeMouseEvent);
+	BOOL ainput = false;
+#if defined(CHANNEL_AINPUT_SERVER)
+	ainput = ccontext->ainput != NULL;
+#endif
+
+	return useRelative && (haveRelative || ainput);
 }

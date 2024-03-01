@@ -557,10 +557,12 @@ owned by rdpRdp */
 	};
 	typedef struct rdp_channel_handles rdpChannelHandles;
 
+	FREERDP_API void freerdp_context_free(freerdp* instance);
+
 	FREERDP_API BOOL freerdp_context_new(freerdp* instance);
 	FREERDP_API BOOL freerdp_context_new_ex(freerdp* instance, rdpSettings* settings);
+
 	FREERDP_API BOOL freerdp_context_reset(freerdp* instance);
-	FREERDP_API void freerdp_context_free(freerdp* instance);
 
 	FREERDP_API BOOL freerdp_connect(freerdp* instance);
 
@@ -613,8 +615,10 @@ owned by rdpRdp */
 	FREERDP_API const char* freerdp_get_build_revision(void);
 	FREERDP_API const char* freerdp_get_build_config(void);
 
-	FREERDP_API freerdp* freerdp_new(void);
 	FREERDP_API void freerdp_free(freerdp* instance);
+
+	WINPR_ATTR_MALLOC(freerdp_free, 1)
+	FREERDP_API freerdp* freerdp_new(void);
 
 	FREERDP_API BOOL freerdp_focus_required(freerdp* instance);
 	FREERDP_API void freerdp_set_focus(freerdp* instance);
@@ -642,7 +646,12 @@ owned by rdpRdp */
 	                                           const char* fkt, const char* file, int line);
 
 	FREERDP_API const char* freerdp_get_logon_error_info_type(UINT32 type);
+	FREERDP_API const char* freerdp_get_logon_error_info_type_ex(UINT32 type, char* buffer,
+	                                                             size_t size);
+
 	FREERDP_API const char* freerdp_get_logon_error_info_data(UINT32 data);
+	FREERDP_API const char* freerdp_get_logon_error_info_data_ex(UINT32 data, char* buffer,
+	                                                             size_t size);
 
 	FREERDP_API ULONG freerdp_get_transport_sent(rdpContext* context, BOOL resetCount);
 

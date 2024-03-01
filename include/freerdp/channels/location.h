@@ -2,7 +2,7 @@
  * FreeRDP: A Remote Desktop Protocol Implementation
  * Location Virtual Channel Extension
  *
- * Copyright 2022 Pascal Nowack <Pascal.Nowack@gmx.de>
+ * Copyright 2023 Pascal Nowack <Pascal.Nowack@gmx.de>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ extern "C"
 
 	typedef enum
 	{
+		PDUTYPE_LOC_RESERVED = 0x0000,
 		PDUTYPE_SERVER_READY = 0x0001,
 		PDUTYPE_CLIENT_READY = 0x0002,
 		PDUTYPE_BASE_LOCATION3D = 0x0003,

@@ -19,13 +19,14 @@
 
 #include <vector>
 #include <string>
-#include <assert.h>
+#include <cassert>
 
 #include <freerdp/log.h>
 #include <freerdp/utils/smartcardlogon.h>
 
 #include <SDL.h>
 
+#include "../sdl_freerdp.hpp"
 #include "sdl_dialogs.hpp"
 #include "sdl_input.hpp"
 #include "sdl_input_widgets.hpp"
@@ -52,32 +53,58 @@ static const char* type_str_for_flags(UINT32 flags)
 	return type;
 }
 
-static int sdl_show_dialog(rdpContext* context, const char* title, const char* message,
-                           Sint32 flags)
+static BOOL sdl_wait_for_result(rdpContext* context, Uint32 type, SDL_Event* result)
 {
-	if (!sdl_push_user_event(SDL_USEREVENT_SHOW_DIALOG, title, message, flags))
-		return 0;
+	const SDL_Event empty = { 0 };
+
+	WINPR_ASSERT(context);
+	WINPR_ASSERT(result);
 
 	while (!freerdp_shall_disconnect_context(context))
 	{
-		SDL_Event event = { 0 };
-		const int rc = SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_USEREVENT_SHOW_RESULT,
-		                              SDL_USEREVENT_SHOW_RESULT);
+		*result = empty;
+		const int rc = SDL_PeepEvents(result, 1, SDL_GETEVENT, type, type);
 		if (rc > 0)
-			return event.user.code;
+			return TRUE;
 		Sleep(1);
 	}
-	return 0;
+	return FALSE;
+}
+
+static int sdl_show_dialog(rdpContext* context, const char* title, const char* message,
+                           Sint32 flags)
+{
+	SDL_Event event = { 0 };
+
+	if (!sdl_push_user_event(SDL_USEREVENT_SHOW_DIALOG, title, message, flags))
+		return 0;
+
+	if (!sdl_wait_for_result(context, SDL_USEREVENT_SHOW_RESULT, &event))
+		return 0;
+
+	return event.user.code;
 }
 
 BOOL sdl_authenticate_ex(freerdp* instance, char** username, char** password, char** domain,
                          rdp_auth_reason reason)
 {
+	SDL_Event event = { 0 };
 	BOOL res = FALSE;
+
+	SDLConnectionDialogHider hider(instance);
 
 	const char* target = freerdp_settings_get_server_name(instance->context->settings);
 	switch (reason)
 	{
+		case AUTH_NLA:
+			break;
+
+		case AUTH_TLS:
+		case AUTH_RDP:
+		case AUTH_SMARTCARD_PIN: /* in this case password is pin code */
+			if ((*username) && (*password))
+				return TRUE;
+			break;
 		case GW_AUTH_HTTP:
 		case GW_AUTH_RDG:
 		case GW_AUTH_RPC:
@@ -107,27 +134,22 @@ BOOL sdl_authenticate_ex(freerdp* instance, char** username, char** password, ch
 	if (!sdl_push_user_event(SDL_USEREVENT_AUTH_DIALOG, title, u, d, p, reason))
 		goto fail;
 
-	while (!freerdp_shall_disconnect_context(instance->context))
+	if (!sdl_wait_for_result(instance->context, SDL_USEREVENT_AUTH_RESULT, &event))
+		goto fail;
+	else
 	{
-		SDL_Event event = { 0 };
-		const int rc = SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_USEREVENT_AUTH_RESULT,
-		                              SDL_USEREVENT_AUTH_RESULT);
-		if (rc > 0)
-		{
-			SDL_UserAuthArg* arg = reinterpret_cast<SDL_UserAuthArg*>(event.padding);
+		auto arg = reinterpret_cast<SDL_UserAuthArg*>(event.padding);
 
-			res = arg->result != 0 ? TRUE : FALSE;
+		res = arg->result > 0 ? TRUE : FALSE;
 
-			free(*username);
-			free(*domain);
-			free(*password);
-			*username = arg->user;
-			*domain = arg->domain;
-			*password = arg->password;
-			break;
-		}
-		Sleep(1);
+		free(*username);
+		free(*domain);
+		free(*password);
+		*username = arg->user;
+		*domain = arg->domain;
+		*password = arg->password;
 	}
+
 fail:
 	free(title);
 	return res;
@@ -138,6 +160,11 @@ BOOL sdl_choose_smartcard(freerdp* instance, SmartcardCertInfo** cert_list, DWOR
 {
 	BOOL res = FALSE;
 
+	WINPR_ASSERT(instance);
+	WINPR_ASSERT(cert_list);
+	WINPR_ASSERT(choice);
+
+	SDLConnectionDialogHider hider(instance);
 	std::vector<std::string> strlist;
 	std::vector<const char*> list;
 	for (DWORD i = 0; i < count; i++)
@@ -154,37 +181,83 @@ BOOL sdl_choose_smartcard(freerdp* instance, SmartcardCertInfo** cert_list, DWOR
 		               container_name, reader, cert->userHint, cert->domainHint, cert->subject,
 		               cert->issuer, cert->upn);
 
-		strlist.push_back(msg);
+		strlist.emplace_back(msg);
 		free(msg);
 		free(reader);
 		free(container_name);
 
-		auto m = strlist.back();
+		auto& m = strlist.back();
 		list.push_back(m.c_str());
 	}
 
+	SDL_Event event = { 0 };
 	const char* title = "Select a logon smartcard certificate";
 	if (gateway)
 		title = "Select a gateway logon smartcard certificate";
 	if (!sdl_push_user_event(SDL_USEREVENT_SCARD_DIALOG, title, list.data(), count))
 		goto fail;
 
-	while (!freerdp_shall_disconnect_context(instance->context))
-	{
-		SDL_Event event = { 0 };
-		const int rc = SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_USEREVENT_SCARD_RESULT,
-		                              SDL_USEREVENT_SCARD_RESULT);
-		if (rc > 0)
-		{
-			res = TRUE;
-			*choice = static_cast<DWORD>(event.user.code);
-			break;
-		}
-		Sleep(1);
-	}
+	if (!sdl_wait_for_result(instance->context, SDL_USEREVENT_SCARD_RESULT, &event))
+		goto fail;
+
+	res = (event.user.code >= 0) ? TRUE : FALSE;
+	*choice = static_cast<DWORD>(event.user.code);
 
 fail:
 	return res;
+}
+
+SSIZE_T sdl_retry_dialog(freerdp* instance, const char* what, size_t current, void* userarg)
+{
+	WINPR_ASSERT(instance);
+	WINPR_ASSERT(instance->context);
+	WINPR_ASSERT(what);
+
+	auto sdl = get_context(instance->context);
+	std::lock_guard<CriticalSection> lock(sdl->critical);
+	WINPR_ASSERT(sdl->connection_dialog);
+
+	sdl->connection_dialog->setTitle("Retry connection to %s",
+	                                 freerdp_settings_get_server_name(instance->context->settings));
+
+	if ((strcmp(what, "arm-transport") != 0) && (strcmp(what, "connection") != 0))
+	{
+		sdl->connection_dialog->showError("Unknown module %s, aborting", what);
+		return -1;
+	}
+
+	if (current == 0)
+	{
+		if (strcmp(what, "arm-transport") == 0)
+			sdl->connection_dialog->showWarn("[%s] Starting your VM. It may take up to 5 minutes",
+			                                 what);
+	}
+
+	auto settings = instance->context->settings;
+	const BOOL enabled = freerdp_settings_get_bool(settings, FreeRDP_AutoReconnectionEnabled);
+
+	if (!enabled)
+	{
+		sdl->connection_dialog->showError(
+		    "Automatic reconnection disabled, terminating. Try to connect again later");
+		return -1;
+	}
+
+	const size_t max = freerdp_settings_get_uint32(settings, FreeRDP_AutoReconnectMaxRetries);
+	const size_t delay = freerdp_settings_get_uint32(settings, FreeRDP_TcpConnectTimeout);
+	if (current >= max)
+	{
+		sdl->connection_dialog->showError(
+		    "[%s] retries exceeded. Your VM failed to start. Try again later or contact your "
+		    "tech support for help if this keeps happening.",
+		    what);
+		return -1;
+	}
+
+	sdl->connection_dialog->showInfo("[%s] retry %" PRIuz "/%" PRIuz ", delaying %" PRIuz
+	                                 "ms before next attempt",
+	                                 what, current, max, delay);
+	return delay;
 }
 
 BOOL sdl_present_gateway_message(freerdp* instance, UINT32 type, BOOL isDisplayMandatory,
@@ -204,6 +277,7 @@ BOOL sdl_present_gateway_message(freerdp* instance, UINT32 type, BOOL isDisplayM
 		flags = SHOW_DIALOG_TIMED_ACCEPT;
 	char* message = ConvertWCharNToUtf8Alloc(wmessage, length, nullptr);
 
+	SDLConnectionDialogHider hider(instance);
 	const int rc = sdl_show_dialog(instance->context, title, message, flags);
 	free(title);
 	free(message);
@@ -218,6 +292,12 @@ int sdl_logon_error_info(freerdp* instance, UINT32 data, UINT32 type)
 
 	if (!instance || !instance->context)
 		return -1;
+
+	/* ignore LOGON_MSG_SESSION_CONTINUE message */
+	if (type == LOGON_MSG_SESSION_CONTINUE)
+		return 0;
+
+	SDLConnectionDialogHider hider(instance);
 
 	char* title = nullptr;
 	size_t tlen = 0;
@@ -237,19 +317,14 @@ int sdl_logon_error_info(freerdp* instance, UINT32 data, UINT32 type)
 static DWORD sdl_show_ceritifcate_dialog(rdpContext* context, const char* title,
                                          const char* message)
 {
+	SDLConnectionDialogHider hider(context);
 	if (!sdl_push_user_event(SDL_USEREVENT_CERT_DIALOG, title, message))
 		return 0;
 
-	while (!freerdp_shall_disconnect_context(context))
-	{
-		SDL_Event event = { 0 };
-		const int rc = SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_USEREVENT_CERT_RESULT,
-		                              SDL_USEREVENT_CERT_RESULT);
-		if (rc > 0)
-			return static_cast<DWORD>(event.user.code);
-		Sleep(1);
-	}
-	return 0;
+	SDL_Event event = { 0 };
+	if (!sdl_wait_for_result(context, SDL_USEREVENT_CERT_RESULT, &event))
+		return 0;
+	return static_cast<DWORD>(event.user.code);
 }
 
 DWORD sdl_verify_changed_certificate_ex(freerdp* instance, const char* host, UINT16 port,
@@ -264,6 +339,7 @@ DWORD sdl_verify_changed_certificate_ex(freerdp* instance, const char* host, UIN
 	WINPR_ASSERT(instance->context);
 	WINPR_ASSERT(instance->context->settings);
 
+	SDLConnectionDialogHider hider(instance);
 	/* Newer versions of FreeRDP allow exposing the whole PEM by setting
 	 * FreeRDP_CertificateCallbackPreferPEM to TRUE
 	 */
@@ -380,6 +456,7 @@ DWORD sdl_verify_certificate_ex(freerdp* instance, const char* host, UINT16 port
 	    "Please look at the OpenSSL documentation on how to add a private CA to the store.\n",
 	    common_name, subject, issuer, fp_str);
 
+	SDLConnectionDialogHider hider(instance);
 	const DWORD rc = sdl_show_ceritifcate_dialog(instance->context, title, message);
 	free(fp_str);
 	free(title);
@@ -512,18 +589,32 @@ BOOL sdl_auth_dialog_show(const SDL_UserAuthArg* args)
 		rc = ilist.run(result);
 	}
 
-	if ((rc <= 0) || (result.size() < prompt.size()))
-		return FALSE;
+	if ((result.size() < prompt.size()))
+		rc = -1;
 
-	return sdl_push_user_event(SDL_USEREVENT_AUTH_RESULT, _strdup(result[0].c_str()),
-	                           _strdup(result[1].c_str()), _strdup(result[2].c_str()), rc);
+	char* user = nullptr;
+	char* domain = nullptr;
+	char* pwd = nullptr;
+	if (rc > 0)
+	{
+		user = _strdup(result[0].c_str());
+		if (args->result == AUTH_SMARTCARD_PIN)
+			pwd = _strdup(result[1].c_str());
+		else
+		{
+			domain = _strdup(result[1].c_str());
+			pwd = _strdup(result[2].c_str());
+		}
+	}
+	return sdl_push_user_event(SDL_USEREVENT_AUTH_RESULT, user, domain, pwd, rc);
 }
 
 BOOL sdl_scard_dialog_show(const char* title, Sint32 count, const char** list)
 {
 	std::vector<std::string> vlist;
+	vlist.reserve(count);
 	for (Sint32 x = 0; x < count; x++)
-		vlist.push_back(list[x]);
+		vlist.emplace_back(list[x]);
 	SdlSelectList slist(title, vlist);
 	Sint32 value = slist.run();
 	return sdl_push_user_event(SDL_USEREVENT_SCARD_RESULT, value);

@@ -41,11 +41,12 @@
 #include "../log.h"
 #define TAG WINPR_TAG("unicode")
 
+#define UCNV_CONVERT 1
+
 int int_MultiByteToWideChar(UINT CodePage, DWORD dwFlags, LPCSTR lpMultiByteStr, int cbMultiByte,
                             LPWSTR lpWideCharStr, int cchWideChar)
 {
 	const BOOL isNullTerminated = cbMultiByte < 0;
-	LPWSTR targetStart = NULL;
 
 	WINPR_UNUSED(dwFlags);
 
@@ -77,7 +78,6 @@ int int_MultiByteToWideChar(UINT CodePage, DWORD dwFlags, LPCSTR lpMultiByteStr,
 	{
 		UErrorCode error = U_ZERO_ERROR;
 		int32_t targetLength = -1;
-		int32_t targetCapacity = -1;
 
 		switch (CodePage)
 		{
@@ -91,11 +91,19 @@ int int_MultiByteToWideChar(UINT CodePage, DWORD dwFlags, LPCSTR lpMultiByteStr,
 				return 0;
 		}
 
-		targetStart = lpWideCharStr;
-		targetCapacity = cchWideChar;
-
+		const int32_t targetCapacity = cchWideChar;
+#if defined(UCNV_CONVERT)
+		char* targetStart = (char*)lpWideCharStr;
+		targetLength =
+		    ucnv_convert("UTF-16LE", "UTF-8", targetStart, targetCapacity * (int32_t)sizeof(WCHAR),
+		                 lpMultiByteStr, cbMultiByte, &error);
+		if (targetLength > 0)
+			targetLength /= sizeof(WCHAR);
+#else
+		WCHAR* targetStart = lpWideCharStr;
 		u_strFromUTF8(targetStart, targetCapacity, &targetLength, lpMultiByteStr, cbMultiByte,
 		              &error);
+#endif
 
 		switch (error)
 		{
@@ -139,8 +147,6 @@ int int_WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr,
                             LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar,
                             LPBOOL lpUsedDefaultChar)
 {
-	char* targetStart = NULL;
-
 	/* If cchWideChar is 0, the function fails */
 
 	if ((cchWideChar == 0) || (cchWideChar < -1))
@@ -171,7 +177,6 @@ int int_WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr,
 	{
 		UErrorCode error = U_ZERO_ERROR;
 		int32_t targetLength = -1;
-		int32_t targetCapacity = -1;
 
 		switch (CodePage)
 		{
@@ -185,10 +190,15 @@ int int_WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr,
 				return 0;
 		}
 
-		targetStart = lpMultiByteStr;
-		targetCapacity = cbMultiByte;
-
+		char* targetStart = lpMultiByteStr;
+		const int32_t targetCapacity = cbMultiByte;
+#if defined(UCNV_CONVERT)
+		const char* str = (const char*)lpWideCharStr;
+		targetLength = ucnv_convert("UTF-8", "UTF-16LE", targetStart, targetCapacity, str,
+		                            cchWideChar * (int32_t)sizeof(WCHAR), &error);
+#else
 		u_strToUTF8(targetStart, targetCapacity, &targetLength, lpWideCharStr, cchWideChar, &error);
+#endif
 		switch (error)
 		{
 			case U_BUFFER_OVERFLOW_ERROR:

@@ -69,17 +69,17 @@ macro (freerdp_include_directory_add)
 endmacro()
 
 macro (freerdp_library_add_public)
-	foreach (_lib ${ARGN})
-		list (APPEND LIBFREERDP_PUB_LIBS "${_lib}")
-	endforeach()
-	set (LIBFREERDP_PUB_LIBS ${LIBFREERDP_PUB_LIBS} PARENT_SCOPE)
+    foreach (_lib ${ARGN})
+        list (APPEND LIBFREERDP_PUB_LIBS "${_lib}")
+    endforeach()
+    set (LIBFREERDP_PUB_LIBS ${LIBFREERDP_PUB_LIBS} PARENT_SCOPE)
 endmacro()
 
 macro (freerdp_library_add)
-	foreach (_lib ${ARGN})
-		list (APPEND LIBFREERDP_LIBS "${_lib}")
-	endforeach()
-	set (LIBFREERDP_LIBS ${LIBFREERDP_LIBS} PARENT_SCOPE)
+    foreach (_lib ${ARGN})
+        list (APPEND LIBFREERDP_LIBS "${_lib}")
+    endforeach()
+    set (LIBFREERDP_LIBS ${LIBFREERDP_LIBS} PARENT_SCOPE)
 endmacro()
 
 macro (freerdp_definition_add)
@@ -132,8 +132,8 @@ endif ()
 
 # codec
 set(CODEC_SRCS
-	codec/bulk.c
-	codec/bulk.h
+    codec/bulk.c
+    codec/bulk.h
     codec/dsp.c
     codec/color.c
     codec/audio.c
@@ -197,8 +197,8 @@ if (WITH_DSP_FFMPEG)
         ${CODEC_SRCS}
         codec/dsp_ffmpeg.c
         codec/dsp_ffmpeg.h)
-	freerdp_include_directory_add(${FFMPEG_INCLUDE_DIRS})
-	freerdp_library_add(${FFMPEG_LIBRARIES})
+        freerdp_include_directory_add(${FFMPEG_INCLUDE_DIRS})
+        freerdp_library_add(${FFMPEG_LIBRARIES})
 endif (WITH_DSP_FFMPEG)
 
 if (WITH_SOXR)
@@ -216,6 +216,36 @@ if(LAME_FOUND)
     include_directories(${LAME_INCLUDE_DIRS})
 endif()
 
+set(OPUS_DEFAULT OFF)
+if (NOT WITH_DSP_FFMPEG)
+    find_package(Opus)
+    if (Opus_FOUND)
+            set(OPUS_DEFAULT ${OPUS_FOUND})
+    else()
+        find_package(PkgConfig)
+        if (PkgConfig_FOUND)
+            pkg_check_modules(OPUS opus)
+            set(OPUS_DEFAULT ${OPUS_FOUND})
+        endif()
+    endif()
+endif()
+
+option(WITH_OPUS "compile with opus codec support" ${OPUS_DEFAULT})
+if (WITH_OPUS)
+    find_package(Opus)
+    if (Opus_FOUND)
+        freerdp_library_add(Opus::opus)
+    else()
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(OPUS REQUIRED opus)
+        if(OPUS_FOUND)
+            freerdp_library_add(${OPUS_LIBRARIES})
+            include_directories(${OPUS_INCLUDE_DIRS})
+	    link_directories(${OPUS_LIBRARY_DIRS})
+        endif()
+    endif()
+endif()
+
 if(FAAD2_FOUND)
     freerdp_library_add(${FAAD2_LIBRARIES})
     include_directories(${FAAD2_INCLUDE_DIRS})
@@ -226,8 +256,23 @@ if(FAAC_FOUND)
     include_directories(${FAAC_INCLUDE_DIRS})
 endif()
 
-if(WITH_AAD)
-	freerdp_library_add_public(${CJSON_LIBRARIES})
+if (WITH_AAD)
+    if (NOT cJSON_FOUND)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(CJSON libcjson)
+    endif()
+    if (NOT CJSON_LIBRARIES OR NOT CJSON_INCLUDE_DIRS)
+        find_path(CJSON_INCLUDE_DIRS
+            NAMES cjson/cJSON.h
+            REQUIRED
+        )
+        find_library(CJSON_LIBRARIES
+            NAMES cjson
+            REQUIRED
+        )
+    endif()
+
+    freerdp_library_add(${CJSON_LIBRARIES})
     include_directories(${CJSON_INCLUDE_DIRS})
 endif()
 
@@ -240,11 +285,6 @@ if(WITH_NEON)
     endif()
 
     set(CODEC_SRCS ${CODEC_SRCS} ${CODEC_NEON_SRCS})
-endif()
-
-if(WITH_JPEG)
-    freerdp_include_directory_add(${JPEG_INCLUDE_DIR})
-    freerdp_library_add(${JPEG_LIBRARIES})
 endif()
 
 if(WITH_OPENH264)
@@ -268,8 +308,8 @@ endif()
 if(ANDROID AND WITH_MEDIACODEC)
     list(APPEND CODEC_SRCS codec/h264_mediacodec.c)
 
-		find_library(MEDIACODEC mediandk REQUIRED)
-		freerdp_library_add(${MEDIACODEC})
+    find_library(MEDIACODEC mediandk REQUIRED)
+    freerdp_library_add(${MEDIACODEC})
 endif()
 
 freerdp_module_add(${CODEC_SRCS})
@@ -438,7 +478,7 @@ set_property(TARGET ${MODULE_NAME} PROPERTY FOLDER "FreeRDP/libfreerdp")
 
 include(pkg-config-install-prefix)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/freerdp.pc.in ${CMAKE_CURRENT_BINARY_DIR}/freerdp${FREERDP_VERSION_MAJOR}.pc @ONLY)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/freerdp${FREERDP_VERSION_MAJOR}.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/freerdp${FREERDP_VERSION_MAJOR}.pc DESTINATION ${PKG_CONFIG_PC_INSTALL_DIR})
 
 ## cmake project
 export(PACKAGE freerdp)

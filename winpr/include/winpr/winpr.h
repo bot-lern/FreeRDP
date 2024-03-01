@@ -37,7 +37,7 @@
 #endif
 #endif
 #else
-#if __GNUC__ >= 4
+#if defined(__GNUC__) && (__GNUC__ >= 4)
 #define WINPR_API __attribute__((visibility("default")))
 #else
 #define WINPR_API
@@ -45,6 +45,15 @@
 #endif
 #else /* WINPR_DLL */
 #define WINPR_API
+#endif
+
+#if defined(__clang__) || defined(__GNUC__) && (__GNUC__ <= 10)
+#define WINPR_ATTR_MALLOC(deallocator, ptrindex) __attribute__((malloc, warn_unused_result))
+#elif defined(__GNUC__)
+#define WINPR_ATTR_MALLOC(deallocator, ptrindex) \
+	__attribute__((malloc(deallocator, ptrindex), warn_unused_result))
+#else
+#define WINPR_ATTR_MALLOC(deallocator, ptrindex)
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -79,7 +88,7 @@
 #if defined _WIN32 || defined __CYGWIN__
 #define WINPR_LOCAL
 #else
-#if __GNUC__ >= 4
+#if defined(__GNUC__) && (__GNUC__ >= 4)
 #define WINPR_LOCAL __attribute__((visibility("hidden")))
 #else
 #define WINPR_LOCAL

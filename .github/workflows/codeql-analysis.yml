@@ -12,13 +12,12 @@
 name: "CodeQL"
 
 on:
-  push:
+  workflow_dispatch:
     branches: [ master, stable* ]
-  pull_request:
-    # The branches below must be a subset of the branches above
+  pull_request_target:
     branches: [ master, stable* ]
   schedule:
-    - cron: '30 8 * * 6'
+    - cron: '30 2 * * SUN'
     
 permissions:
   contents: read
@@ -27,6 +26,8 @@ jobs:
   analyze:
     permissions:
       security-events: write
+      actions: read
+      contents: read
     name: Analyze
     runs-on: ubuntu-latest
 
@@ -39,12 +40,15 @@ jobs:
         # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+    - uses: suzuki-shunsuke/get-pr-action@v0.1.0
+      id: pr
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{steps.pr.outputs.merge_commit_sha}}
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -66,7 +70,54 @@ jobs:
 
     - run: |
        sudo apt update
-       sudo apt install libxrandr-dev libxinerama-dev libusb-1.0-0-dev xserver-xorg-dev libswscale-dev libswresample-dev libavutil-dev libavcodec-dev libcups2-dev libpulse-dev libasound2-dev libpcsclite-dev xsltproc libxcb-cursor-dev libxcursor-dev libcairo2-dev libfaac-dev libfaad-dev libjpeg-dev libgsm1-dev ninja-build libxfixes-dev libxkbcommon-dev libwayland-dev libpam0g-dev libxdamage-dev libxcb-damage0-dev ccache libxtst-dev libfuse3-dev libsystemd-dev libcairo2-dev libsoxr-dev libsdl2-dev docbook-xsl libkrb5-dev libcjson-dev libpkcs11-helper1-dev libsdl2-ttf-dev libwebkit2gtk-4.0-dev clang
+       sudo apt install \
+         libxrandr-dev \
+         libxinerama-dev \
+         libusb-1.0-0-dev \
+         xserver-xorg-dev \
+         libswscale-dev \
+         libswresample-dev \
+         libavutil-dev \
+         libavcodec-dev \
+         libcups2-dev \
+         libpulse-dev \
+         libasound2-dev \
+         libpcsclite-dev \
+         xsltproc \
+         libxcb-cursor-dev \
+         libxcursor-dev \
+         libcairo2-dev \
+         libfaac-dev \
+         libfaad-dev \
+         libjpeg-dev \
+         libgsm1-dev \
+         ninja-build \
+         libxfixes-dev \
+         libxkbcommon-dev \
+         libwayland-dev \
+         libpam0g-dev \
+         libxdamage-dev \
+         libxcb-damage0-dev \
+         ccache \
+         libxtst-dev \
+         libfuse3-dev \
+         libsystemd-dev \
+         libcairo2-dev \
+         libsoxr-dev \
+         libsdl2-dev \
+         docbook-xsl \
+         libkrb5-dev \
+         libcjson-dev \
+         libpkcs11-helper1-dev \
+         libsdl2-ttf-dev \
+         libsdl2-image-dev \
+         libwebkit2gtk-4.0-dev \
+         clang \
+         libopus-dev \
+         libwebp-dev \
+         libpng-dev \
+         libjpeg-dev \
+         liburiparser-dev
        mkdir ci-build
        cd ci-build
        export CC=/usr/bin/clang
@@ -77,4 +128,4 @@ jobs:
        cmake --build .
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3

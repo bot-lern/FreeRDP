@@ -4,7 +4,6 @@
 #include <winpr/image.h>
 #include <winpr/print.h>
 #include <winpr/wlog.h>
-#include <winpr/image.h>
 #include <winpr/sysinfo.h>
 #include <winpr/file.h>
 
@@ -151,12 +150,11 @@ static void sample_file_free(EGFX_SAMPLE_FILE* file)
 
 static void test_fill_image_alpha_channel(BYTE* data, int width, int height, BYTE value)
 {
-	int i, j;
-	UINT32* pixel;
+	UINT32* pixel = NULL;
 
-	for (i = 0; i < height; i++)
+	for (int i = 0; i < height; i++)
 	{
-		for (j = 0; j < width; j++)
+		for (int j = 0; j < width; j++)
 		{
 			pixel = (UINT32*)&data[((i * width) + j) * 4];
 			*pixel = ((*pixel & 0x00FFFFFF) | (value << 24));
@@ -177,13 +175,12 @@ static void* test_image_memset32(UINT32* ptr, UINT32 fill, size_t length)
 static int test_image_fill(BYTE* pDstData, int nDstStep, int nXDst, int nYDst, int nWidth,
                            int nHeight, UINT32 color)
 {
-	int y;
-	UINT32* pDstPixel;
+	UINT32* pDstPixel = NULL;
 
 	if (nDstStep < 0)
 		nDstStep = 4 * nWidth;
 
-	for (y = 0; y < nHeight; y++)
+	for (int y = 0; y < nHeight; y++)
 	{
 		pDstPixel = (UINT32*)&pDstData[((nYDst + y) * nDstStep) + (nXDst * 4)];
 		test_image_memset32(pDstPixel, color, nWidth);
@@ -536,10 +533,10 @@ static int test_progressive_load_files(char* ms_sample_path, EGFX_SAMPLE_FILE fi
 
 static BYTE* test_progressive_load_bitmap(char* path, char* file, size_t* size, int quarter)
 {
-	int status;
-	BYTE* buffer;
-	wImage* image;
-	char* filename;
+	int status = 0;
+	BYTE* buffer = NULL;
+	wImage* image = NULL;
+	char* filename = NULL;
 	filename = GetCombinedPath(path, file);
 
 	if (!filename)
@@ -817,7 +814,8 @@ static size_t test_memcmp_count(const BYTE* mem1, const BYTE* mem2, size_t size,
 static int test_progressive_decode(PROGRESSIVE_CONTEXT* progressive, EGFX_SAMPLE_FILE files[4],
                                    EGFX_SAMPLE_FILE bitmaps[4], int quarter, int count)
 {
-	int nXSrc, nYSrc;
+	int nXSrc = 0;
+	int nYSrc = 0;
 
 	RECTANGLE_16 clippingRect = { 0 };
 	clippingRect.right = g_Width;
@@ -903,12 +901,11 @@ static int test_progressive_decode(PROGRESSIVE_CONTEXT* progressive, EGFX_SAMPLE
 
 static int test_progressive_ms_sample(char* ms_sample_path)
 {
-	int i, j, k;
-	int count;
-	int status;
+	int count = 0;
+	int status = 0;
 	EGFX_SAMPLE_FILE files[3][4][4] = { 0 };
 	EGFX_SAMPLE_FILE bitmaps[3][4][4] = { 0 };
-	PROGRESSIVE_CONTEXT* progressive;
+	PROGRESSIVE_CONTEXT* progressive = NULL;
 	g_Width = 1920;
 	g_Height = 1080;
 	g_DstStep = g_Width * 4;
@@ -916,11 +913,11 @@ static int test_progressive_ms_sample(char* ms_sample_path)
 
 	if (status < 0)
 	{
-		for (i = 0; i < 3; i++)
+		for (int i = 0; i < 3; i++)
 		{
-			for (j = 0; j < 4; j++)
+			for (int j = 0; j < 4; j++)
 			{
-				for (k = 0; k < 4; k++)
+				for (int k = 0; k < 4; k++)
 					sample_file_free(&files[i][j][k]);
 			}
 		}
@@ -932,11 +929,11 @@ static int test_progressive_ms_sample(char* ms_sample_path)
 
 	if (status < 0)
 	{
-		for (i = 0; i < 3; i++)
+		for (int i = 0; i < 3; i++)
 		{
-			for (j = 0; j < 4; j++)
+			for (int j = 0; j < 4; j++)
 			{
-				for (k = 0; k < 4; k++)
+				for (int k = 0; k < 4; k++)
 					sample_file_free(&files[i][j][k]);
 			}
 		}
@@ -987,11 +984,11 @@ static int test_progressive_ms_sample(char* ms_sample_path)
 
 	progressive_context_free(progressive);
 
-	for (i = 0; i < 3; i++)
+	for (int i = 0; i < 3; i++)
 	{
-		for (j = 0; j < 4; j++)
+		for (int j = 0; j < 4; j++)
 		{
-			for (k = 0; k < 4; k++)
+			for (int k = 0; k < 4; k++)
 			{
 				sample_file_free(&bitmaps[i][j][k]);
 				sample_file_free(&files[i][j][k]);
@@ -1014,8 +1011,14 @@ static BOOL diff(BYTE a, BYTE b)
 
 static BOOL colordiff(UINT32 format, UINT32 a, UINT32 b)
 {
-	BYTE ar, ag, ab, aa;
-	BYTE br, bg, bb, ba;
+	BYTE ar = 0;
+	BYTE ag = 0;
+	BYTE ab = 0;
+	BYTE aa = 0;
+	BYTE br = 0;
+	BYTE bg = 0;
+	BYTE bb = 0;
+	BYTE ba = 0;
 	FreeRDPSplitColor(a, format, &ar, &ag, &ab, &aa, NULL);
 	FreeRDPSplitColor(b, format, &br, &bg, &bb, &ba, NULL);
 	if (!diff(aa, ba) || !diff(ar, br) || !diff(ag, bg) || !diff(ab, bb))
@@ -1026,7 +1029,7 @@ static BOOL colordiff(UINT32 format, UINT32 a, UINT32 b)
 static BOOL test_encode_decode(const char* path)
 {
 	BOOL res = FALSE;
-	int rc;
+	int rc = 0;
 	BYTE* resultData = NULL;
 	BYTE* dstData = NULL;
 	UINT32 dstSize = 0;
@@ -1085,7 +1088,8 @@ static BOOL test_encode_decode(const char* path)
 			const DWORD b = FreeRDPReadColor(pd, ColorFormat);
 			if (!colordiff(ColorFormat, a, b))
 			{
-				printf("xxxxxxx [%u:%u] %08X != %08X\n", x, y, a, b);
+				printf("xxxxxxx [%u:%u] [%s] %08X != %08X\n", x, y,
+				       FreeRDPGetColorFormatName(ColorFormat), a, b);
 				goto fail;
 			}
 		}
@@ -1105,7 +1109,7 @@ fail:
 int TestFreeRDPCodecProgressive(int argc, char* argv[])
 {
 	int rc = -1;
-	char* ms_sample_path;
+	char* ms_sample_path = NULL;
 	char name[8192];
 	SYSTEMTIME systemTime;
 	WINPR_UNUSED(argc);

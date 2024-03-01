@@ -34,12 +34,12 @@
 int main(int argc, char* argv[])
 {
 	int rc = 1;
-	int status;
-	HANDLE thread;
-	xfContext* xfc;
-	DWORD dwExitCode;
-	rdpContext* context;
-	rdpSettings* settings;
+	int status = 0;
+	HANDLE thread = NULL;
+	xfContext* xfc = NULL;
+	DWORD dwExitCode = 0;
+	rdpContext* context = NULL;
+	rdpSettings* settings = NULL;
 	RDP_CLIENT_ENTRY_POINTS clientEntryPoints = { 0 };
 
 	clientEntryPoints.Size = sizeof(RDP_CLIENT_ENTRY_POINTS);
@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
 	{
 		rc = freerdp_client_settings_command_line_status_print(settings, status, argc, argv);
 
-		if (settings->ListMonitors)
+		if (freerdp_settings_get_bool(settings, FreeRDP_ListMonitors))
 			xf_list_monitors(xfc);
 
 		goto out;

@@ -15,27 +15,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Include our extra modules
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/)
+
 if (NOT FREERDP_UNIFIED_BUILD)
 	cmake_minimum_required(VERSION 3.13)
+
+	if(POLICY CMP0091)
+		cmake_policy(SET CMP0091 NEW)
+	endif()
 	project(WinPR LANGUAGES C)
 
 	set(CMAKE_C_STANDARD 11)
 	set(CMAKE_C_STANDARD_REQUIRED ON)
 	set(CMAKE_C_EXTENSIONS ON)
 
-	include(CheckIPOSupported)
-	check_ipo_supported(RESULT supported OUTPUT error)
-	if (supported)
-		set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-	endif()
-
-	option(CMAKE_COLOR_MAKEFILE "colorful CMake makefile" ON)
-	option(CMAKE_VERBOSE_MAKEFILE "verbose CMake makefile" ON)
-	option(CMAKE_POSITION_INDEPENDENT_CODE "build with position independent code (-fPIC or -fPIE)" ON)
-	option(WITH_LIBRARY_VERSIONING "Use library version triplet" ON)
+	include(CommonConfigOptions)
+	include(ConfigOptions)
 
 	# Default to build shared libs
-	option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 	option(EXPORT_ALL_SYMBOLS "Export all symbols form library" OFF)
 
 	if (EXPORT_ALL_SYMBOLS)
@@ -49,18 +47,32 @@ if (NOT FREERDP_UNIFIED_BUILD)
 			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden")
 		endif()
 	endif()
+    if(WITH_DEBUG_ALL)
+        message(WARNING "WITH_DEBUG_ALL=ON, the build will be slow and might leak sensitive information, do not use with release builds!")
+        set(DEFAULT_DEBUG_OPTION "ON" CACHE INTERNAL "debug default")
+    else()
+        set(DEFAULT_DEBUG_OPTION "OFF" CACHE INTERNAL "debug default")
+    endif()
 endif()
-
-set(DEFAULT_DEBUG_OPTION OFF)
 
 if (WIN32 AND NOT UWP)
 	set(NATIVE_SSPI ON)
 endif()
 
-if(NOT ANDROID AND NOT IOS AND NOT UWP)
+if((NOT ANDROID AND NOT IOS AND NOT UWP) AND NOT WITH_MBEDTLS)
 	set(TOOLS_DEFAULT ON)
 else()
 	set(TOOLS_DEFAULT OFF)
+endif()
+
+if(WITH_MBEDTLS)
+	set(WITH_INTERNAL_RC4_DEFAULT ON)
+	set(WITH_INTERNAL_MD4_DEFAULT ON)
+	set(WITH_INTERNAL_MD5_DEFAULT OFF)
+else()
+	set(WITH_INTERNAL_RC4_DEFAULT OFF)
+	set(WITH_INTERNAL_MD4_DEFAULT OFF)
+	set(WITH_INTERNAL_MD5_DEFAULT OFF)
 endif()
 
 option(WITH_VERBOSE_WINPR_ASSERT "Compile with verbose WINPR_ASSERT." ON)
@@ -72,9 +84,9 @@ option(WITH_DEBUG_SYMBOLS "Pack debug symbols to installer" OFF)
 option(WITH_NATIVE_SSPI "Use native SSPI modules" ${NATIVE_SSPI})
 option(WITH_SMARTCARD_INSPECT "Enable SmartCard API Inspector" OFF)
 option(WITH_DEBUG_MUTEX "Print mutex debug messages" ${DEFAULT_DEBUG_OPTION})
-option(WITH_INTERNAL_RC4 "Use compiled in rc4 functions instead of OpenSSL/MBedTLS" OFF)
-option(WITH_INTERNAL_MD4 "Use compiled in md4 hash functions instead of OpenSSL/MBedTLS" OFF)
-option(WITH_INTERNAL_MD5 "Use compiled in md5 hash functions instead of OpenSSL/MBedTLS" OFF)
+option(WITH_INTERNAL_RC4 "Use compiled in rc4 functions instead of OpenSSL/MBedTLS" ${WITH_INTERNAL_RC4_DEFAULT})
+option(WITH_INTERNAL_MD4 "Use compiled in md4 hash functions instead of OpenSSL/MBedTLS" ${WITH_INTERNAL_MD4_DEFAULT})
+option(WITH_INTERNAL_MD5 "Use compiled in md5 hash functions instead of OpenSSL/MBedTLS" ${WITH_INTERNAL_MD5_DEFAULT})
 option(WITH_UNICODE_BUILTIN  "Use built-in Unicode conversion (don't use system-provided libraries)" OFF)
 
 # This option MUST be off to avoid symbol conflicts when loading an external SSPI module library
@@ -110,15 +122,11 @@ include(CheckSymbolExists)
 include(CheckStructHasMember)
 include(TestBigEndian)
 
-# Include our extra modules
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/)
-
 # Check for cmake compatibility (enable/disable features)
 include(CheckCmakeCompat)
 include(FindFeature)
 include(FeatureSummary)
 include(CheckCCompilerFlag)
-include(GNUInstallDirsWrapper)
 include(InstallFreeRDPMan)
 include(SetFreeRDPCMakeInstallDir)
 include(CMakePackageConfigHelpers)
@@ -129,7 +137,7 @@ endif()
 
 # Soname versioning
 set(VERSION_REGEX "^(.*)([0-9]+)\\.([0-9]+)\\.([0-9]+)-?(.*)")
-set(RAW_VERSION_STRING "3.0.0-dev5")
+set(RAW_VERSION_STRING "3.3.1-dev0")
 if(EXISTS "${PROJECT_SOURCE_DIR}/.source_tag")
 	file(READ ${PROJECT_SOURCE_DIR}/.source_tag RAW_VERSION_STRING)
 elseif(USE_VERSION_FROM_GIT_TAG)
@@ -255,7 +263,7 @@ if(NOT WIN32 AND NOT IOS)
 	list(REMOVE_ITEM CMAKE_REQUIRED_LIBRARIES pthread)
 endif()
 
-set(OPENSSL_FEATURE_TYPE "RECOMMENDED")
+	set(OPENSSL_FEATURE_TYPE "RECOMMENDED")
 	set(OPENSSL_FEATURE_PURPOSE "cryptography")
 	set(OPENSSL_FEATURE_DESCRIPTION "encryption, certificate validation, hashing functions")
 
@@ -263,19 +271,31 @@ set(OPENSSL_FEATURE_TYPE "RECOMMENDED")
 	set(MBEDTLS_FEATURE_PURPOSE "cryptography")
 	set(MBEDTLS_FEATURE_DESCRIPTION "encryption, certificate validation, hashing functions")
 
-	find_feature(OpenSSL ${OPENSSL_FEATURE_TYPE} ${OPENSSL_FEATURE_PURPOSE} ${OPENSSL_FEATURE_DESCRIPTION})
-	find_feature(MbedTLS ${MBEDTLS_FEATURE_TYPE} ${MBEDTLS_FEATURE_PURPOSE} ${MBEDTLS_FEATURE_DESCRIPTION})
+	option(WITH_LIBRESSL "build with LibreSSL" OFF)
+	if (WITH_LIBRESSL)
+		find_package(LibreSSL REQUIRED)
+		set(OPENSSL_INCLUDE_DIR ${LIBRESSL_INCLUDE_DIR})
+		set(OPENSSL_LIBRARIES ${LIBRESSL_LIBRARIES})
+		set(OPENSSL_CRYPTO_LIBRARIES ${LIBRESSL_LIBRARIES})
+		set(WITH_OPENSSL ON)
+		set(OPENSSL_FOUND ON)
+		add_definitions("-DWITH_LIBRESSL")
+		add_definitions("-DWITH_OPENSSL")
+	else()
+		find_feature(OpenSSL ${OPENSSL_FEATURE_TYPE} ${OPENSSL_FEATURE_PURPOSE} ${OPENSSL_FEATURE_DESCRIPTION})
+		find_feature(MbedTLS ${MBEDTLS_FEATURE_TYPE} ${MBEDTLS_FEATURE_PURPOSE} ${MBEDTLS_FEATURE_DESCRIPTION})
+	endif()
 
-	if(OPENSSL_FOUND)
+	if (NOT OPENSSL_FOUND AND NOT MBEDTLS_FOUND AND NOT LibreSSL_FOUND)
+		message(FATAL_ERROR "OpenSSL or MBedTLS are required, none enabled/found")
+	endif()
+
+	if(WITH_OPENSSL AND OPENSSL_FOUND)
 		add_definitions("-DWITH_OPENSSL")
 	endif()
 
-	if(MBEDTLS_FOUND)
+	if(WITH_MBEDTLS AND MBEDTLS_FOUND)
 		add_definitions("-DWITH_MBEDTLS")
-	endif()
-
-	if (NOT OPENSSL_FOUND AND NOT MBEDTLS_FOUND)
-		message(FATAL_ERROR "OpenSSL or MBedTLS are required, none enabled/found")
 	endif()
 
 	enable_testing()
@@ -295,11 +315,6 @@ option(WITH_PKCS11 "encryption, certificate validation, hashing functions" ${PKC
 if (WITH_PKCS11)
 	find_package(Pkcs11 REQUIRED)
 	add_definitions("-DWITH_PKCS11")
-endif()
-
-# Default to release build type
-if(NOT CMAKE_BUILD_TYPE)
-   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "project default" FORCE)
 endif()
 
 if(BUILD_SHARED_LIBS)
@@ -331,7 +346,12 @@ endif()
 
 add_subdirectory(include)
 
-install_freerdp_man(wlog.7 7)
+set(MANPAGE_NAME wlog)
+if (WITH_BINARY_VERSIONING)
+	set(MANPAGE_NAME wlog${WINPR_API_VERSION})
+endif()
+configure_file(wlog.7.in ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE_NAME}.7 @ONLY)
+install_freerdp_man(${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE_NAME}.7  7)
 # Exporting
 
 export(PACKAGE winpr)
@@ -352,5 +372,4 @@ install(EXPORT WinPRTargets DESTINATION ${WINPR_CMAKE_INSTALL_DIR})
 
 include(pkg-config-install-prefix)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/winpr.pc.in ${CMAKE_CURRENT_BINARY_DIR}/winpr${WINPR_VERSION_MAJOR}.pc @ONLY)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/winpr${WINPR_VERSION_MAJOR}.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/winpr${WINPR_VERSION_MAJOR}.pc DESTINATION ${PKG_CONFIG_PC_INSTALL_DIR})

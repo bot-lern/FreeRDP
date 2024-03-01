@@ -48,11 +48,32 @@ if (WIN32)
   set ( SRCS ${SRCS} ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 endif()
 
+if (WITH_BINARY_VERSIONING)
+  set(SAMPLE_RESOURCE_ROOT ${CMAKE_INSTALL_FULL_DATAROOTDIR}/FreeRDP${FREERDP_VERSION_MAJOR}/images)
+else()
+  set(SAMPLE_RESOURCE_ROOT ${CMAKE_INSTALL_FULL_DATAROOTDIR}/FreeRDP/images)
+endif()
+
+set(SAMPLE_ICONS
+    test_icon.bmp
+    test_icon.png
+    test_icon.jpg
+    test_icon.webp
+)
+install(FILES ${SAMPLE_ICONS} DESTINATION ${SAMPLE_RESOURCE_ROOT})
+
 # We need this in runtime path for TestConnect
-file(COPY test_icon.ppm DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY test_icon.bmp DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(${MODULE_NAME} ${SRCS})
+if (WITH_BINARY_VERSIONING)
+	set_target_properties(${MODULE_NAME} PROPERTIES OUTPUT_NAME "${MODULE_NAME}${FREERDP_API_VERSION}")
+endif()
 
+target_compile_definitions(${MODULE_NAME}
+  PRIVATE
+    -DSAMPLE_RESOURCE_ROOT="${SAMPLE_RESOURCE_ROOT}"
+)
 list(APPEND LIBS freerdp-server)
 list(APPEND LIBS winpr freerdp)
 

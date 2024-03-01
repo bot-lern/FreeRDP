@@ -25,6 +25,7 @@
 #include <winpr/print.h>
 #include <winpr/stream.h>
 #include <winpr/string.h>
+#include <winpr/rpc.h>
 
 #include <freerdp/log.h>
 #include <freerdp/crypto/crypto.h>
@@ -56,6 +57,7 @@ struct s_http_context
 	char* Connection;
 	char* Pragma;
 	char* RdgConnectionId;
+	char* RdgCorrelationId;
 	char* RdgAuthScheme;
 	BOOL websocketUpgrade;
 	char* SecWebsocketKey;
@@ -98,8 +100,9 @@ struct s_http_response
 
 static char* string_strnstr(char* str1, const char* str2, size_t slen)
 {
-	char c, sc;
-	size_t len;
+	char c = 0;
+	char sc = 0;
+	size_t len = 0;
 
 	if ((c = *str2++) != '\0')
 	{
@@ -131,14 +134,6 @@ static BOOL strings_equals_nocase(const void* obj1, const void* obj2)
 	return _stricmp(obj1, obj2) == 0;
 }
 
-static void* copy_string(const void* ptr)
-{
-	const char* str = ptr;
-	if (!str)
-		return NULL;
-	return _strdup(ptr);
-}
-
 HttpContext* http_context_new(void)
 {
 	HttpContext* context = (HttpContext*)calloc(1, sizeof(HttpContext));
@@ -154,15 +149,18 @@ HttpContext* http_context_new(void)
 	if (!key || !value)
 		goto fail;
 
-	key->fnObjectFree = free;
-	key->fnObjectNew = copy_string;
-	value->fnObjectFree = free;
-	value->fnObjectNew = copy_string;
+	key->fnObjectFree = winpr_ObjectStringFree;
+	key->fnObjectNew = winpr_ObjectStringClone;
+	value->fnObjectFree = winpr_ObjectStringFree;
+	value->fnObjectNew = winpr_ObjectStringClone;
 
 	return context;
 
 fail:
+	WINPR_PRAGMA_DIAG_PUSH
+	WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC
 	http_context_free(context);
+	WINPR_PRAGMA_DIAG_POP
 	return NULL;
 }
 
@@ -300,29 +298,106 @@ BOOL http_context_set_connection(HttpContext* context, const char* Connection)
 	return TRUE;
 }
 
-BOOL http_context_set_pragma(HttpContext* context, const char* Pragma)
+WINPR_ATTR_FORMAT_ARG(2, 0)
+static BOOL list_append(HttpContext* context, WINPR_FORMAT_ARG const char* str, va_list ap)
+{
+	BOOL rc = FALSE;
+	va_list vat;
+	char* Pragma = NULL;
+	size_t PragmaSize = 0;
+
+	va_copy(vat, ap);
+	const int size = winpr_vasprintf(&Pragma, &PragmaSize, str, ap);
+	va_end(vat);
+
+	if (size <= 0)
+		goto fail;
+
+	char* sstr = NULL;
+	size_t slen = 0;
+	if (context->Pragma)
+	{
+		winpr_asprintf(&sstr, &slen, "%s, %s", context->Pragma, Pragma);
+		free(Pragma);
+	}
+	else
+		sstr = Pragma;
+	free(context->Pragma);
+
+	context->Pragma = sstr;
+
+	rc = TRUE;
+
+fail:
+	va_end(ap);
+	return rc;
+}
+
+WINPR_ATTR_FORMAT_ARG(2, 3)
+BOOL http_context_set_pragma(HttpContext* context, WINPR_FORMAT_ARG const char* Pragma, ...)
 {
 	if (!context || !Pragma)
 		return FALSE;
 
 	free(context->Pragma);
-	context->Pragma = _strdup(Pragma);
+	context->Pragma = NULL;
 
-	if (!context->Pragma)
-		return FALSE;
-
-	return TRUE;
+	va_list ap;
+	va_start(ap, Pragma);
+	return list_append(context, Pragma, ap);
 }
 
-BOOL http_context_set_rdg_connection_id(HttpContext* context, const char* RdgConnectionId)
+WINPR_ATTR_FORMAT_ARG(2, 3)
+BOOL http_context_append_pragma(HttpContext* context, const char* Pragma, ...)
+{
+	if (!context || !Pragma)
+		return FALSE;
+
+	va_list ap;
+	va_start(ap, Pragma);
+	return list_append(context, Pragma, ap);
+}
+
+static char* guid2str(const GUID* guid)
+{
+	if (!guid)
+		return NULL;
+	char* strguid = NULL;
+	char bracedGuid[64] = { 0 };
+
+	RPC_STATUS rpcStatus = UuidToStringA(guid, &strguid);
+
+	if (rpcStatus != RPC_S_OK)
+		return NULL;
+
+	sprintf_s(bracedGuid, sizeof(bracedGuid), "{%s}", strguid);
+	RpcStringFreeA(&strguid);
+	return _strdup(bracedGuid);
+}
+
+BOOL http_context_set_rdg_connection_id(HttpContext* context, const GUID* RdgConnectionId)
 {
 	if (!context || !RdgConnectionId)
 		return FALSE;
 
 	free(context->RdgConnectionId);
-	context->RdgConnectionId = _strdup(RdgConnectionId);
+	context->RdgConnectionId = guid2str(RdgConnectionId);
 
 	if (!context->RdgConnectionId)
+		return FALSE;
+
+	return TRUE;
+}
+
+BOOL http_context_set_rdg_correlation_id(HttpContext* context, const GUID* RdgCorrelationId)
+{
+	if (!context || !RdgCorrelationId)
+		return FALSE;
+
+	free(context->RdgCorrelationId);
+	context->RdgCorrelationId = guid2str(RdgCorrelationId);
+
+	if (!context->RdgCorrelationId)
 		return FALSE;
 
 	return TRUE;
@@ -335,12 +410,12 @@ BOOL http_context_enable_websocket_upgrade(HttpContext* context, BOOL enable)
 
 	if (enable)
 	{
-		BYTE key[16];
-		if (winpr_RAND(key, sizeof(key)) != 0)
+		GUID key = { 0 };
+		if (RPC_S_OK != UuidCreate(&key))
 			return FALSE;
 
 		free(context->SecWebsocketKey);
-		context->SecWebsocketKey = crypto_base64_encode(key, sizeof(key));
+		context->SecWebsocketKey = crypto_base64_encode((BYTE*)&key, sizeof(key));
 		if (!context->SecWebsocketKey)
 			return FALSE;
 	}
@@ -396,6 +471,7 @@ void http_context_free(HttpContext* context)
 		free(context->Connection);
 		free(context->Pragma);
 		free(context->RdgConnectionId);
+		free(context->RdgCorrelationId);
 		free(context->RdgAuthScheme);
 		ListDictionary_Free(context->cookies);
 		free(context);
@@ -471,9 +547,10 @@ BOOL http_request_set_transfer_encoding(HttpRequest* request, TRANSFER_ENCODING 
 WINPR_ATTR_FORMAT_ARG(2, 3)
 static BOOL http_encode_print(wStream* s, WINPR_FORMAT_ARG const char* fmt, ...)
 {
-	char* str;
+	char* str = NULL;
 	va_list ap;
-	int length, used;
+	int length = 0;
+	int used = 0;
 
 	if (!s || !fmt)
 		return FALSE;
@@ -572,7 +649,7 @@ unlock:
 
 wStream* http_request_write(HttpContext* context, HttpRequest* request)
 {
-	wStream* s;
+	wStream* s = NULL;
 
 	if (!context || !request)
 		return NULL;
@@ -607,6 +684,12 @@ wStream* http_request_write(HttpContext* context, HttpRequest* request)
 	if (context->RdgConnectionId)
 	{
 		if (!http_encode_body_line(s, "RDG-Connection-Id", context->RdgConnectionId))
+			goto fail;
+	}
+
+	if (context->RdgCorrelationId)
+	{
+		if (!http_encode_body_line(s, "RDG-Correlation-Id", context->RdgCorrelationId))
 			goto fail;
 	}
 
@@ -699,8 +782,8 @@ static BOOL http_response_parse_header_status_line(HttpResponse* response, const
 {
 	BOOL rc = FALSE;
 	char* separator = NULL;
-	char* status_code;
-	char* reason_phrase;
+	char* status_code = NULL;
+	char* reason_phrase = NULL;
 
 	if (!response)
 		goto fail;
@@ -752,7 +835,7 @@ static BOOL http_response_parse_header_field(HttpResponse* response, const char*
 
 	if (_stricmp(name, "Content-Length") == 0)
 	{
-		unsigned long long val;
+		unsigned long long val = 0;
 		errno = 0;
 		val = _strtoui64(value, NULL, 0);
 
@@ -879,14 +962,12 @@ static BOOL http_response_parse_header_field(HttpResponse* response, const char*
 static BOOL http_response_parse_header(HttpResponse* response)
 {
 	BOOL rc = FALSE;
-	char c;
-	size_t count;
-	char* line;
-	char* name;
-	char* value;
-	char* colon_pos;
-	char* end_of_header;
-	char end_of_header_char;
+	char c = 0;
+	char* line = NULL;
+	char* name = NULL;
+	char* colon_pos = NULL;
+	char* end_of_header = NULL;
+	char end_of_header_char = 0;
 
 	if (!response)
 		goto fail;
@@ -897,7 +978,7 @@ static BOOL http_response_parse_header(HttpResponse* response)
 	if (!http_response_parse_header_status_line(response, response->lines[0]))
 		goto fail;
 
-	for (count = 1; count < response->count; count++)
+	for (size_t count = 1; count < response->count; count++)
 	{
 		line = response->lines[count];
 
@@ -935,7 +1016,8 @@ static BOOL http_response_parse_header(HttpResponse* response)
 		name = line;
 
 		/* eat space and tabs before header value */
-		for (value = colon_pos + 1; *value; value++)
+		char* value = colon_pos + 1;
+		for (; *value; value++)
 		{
 			if ((*value != ' ') && (*value != '\t'))
 				break;
@@ -1027,7 +1109,7 @@ static int print_bio_error(const char* str, size_t len, void* bp)
 int http_chuncked_read(BIO* bio, BYTE* pBuffer, size_t size,
                        http_encoding_chunked_context* encodingContext)
 {
-	int status;
+	int status = 0;
 	int effectiveDataLen = 0;
 	WINPR_ASSERT(bio);
 	WINPR_ASSERT(pBuffer);
@@ -1132,7 +1214,7 @@ int http_chuncked_read(BIO* bio, BYTE* pBuffer, size_t size,
 
 HttpResponse* http_response_recv(rdpTls* tls, BOOL readContentLength)
 {
-	size_t position;
+	size_t position = 0;
 	size_t bodyLength = 0;
 	size_t payloadOffset = 0;
 	HttpResponse* response = http_response_new();
@@ -1144,8 +1226,8 @@ HttpResponse* http_response_recv(rdpTls* tls, BOOL readContentLength)
 
 	while (payloadOffset == 0)
 	{
-		size_t s;
-		char* end;
+		size_t s = 0;
+		char* end = NULL;
 		/* Read until we encounter \r\n\r\n */
 		ERR_clear_error();
 		int status = BIO_read(tls->bio, Stream_Pointer(response->data), 1);
@@ -1300,7 +1382,7 @@ HttpResponse* http_response_recv(rdpTls* tls, BOOL readContentLength)
 		{
 			while (response->BodyLength < bodyLength)
 			{
-				int status;
+				int status = 0;
 
 				if (!Stream_EnsureRemainingCapacity(response->data,
 				                                    bodyLength - response->BodyLength))
@@ -1416,7 +1498,10 @@ HttpResponse* http_response_new(void)
 	response->TransferEncoding = TransferEncodingIdentity;
 	return response;
 fail:
+	WINPR_PRAGMA_DIAG_PUSH
+	WINPR_PRAGMA_DIAG_IGNORED_MISMATCHED_DEALLOC
 	http_response_free(response);
+	WINPR_PRAGMA_DIAG_POP
 	return NULL;
 }
 

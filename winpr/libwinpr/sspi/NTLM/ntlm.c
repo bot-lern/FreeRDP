@@ -56,7 +56,7 @@ static BOOL check_context_(NTLM_CONTEXT* context, const char* file, const char* 
 			WLog_PrintMessage(log, WLOG_MESSAGE_TEXT, log_level, line, file, fkt,
 			                  "invalid context");
 
-		rc = FALSE;
+		return FALSE;
 	}
 
 	if (!context->RecvRc4Seal)
@@ -109,7 +109,7 @@ static int ntlm_SetContextWorkstation(NTLM_CONTEXT* context, char* Workstation)
 {
 	char* ws = Workstation;
 	DWORD nSize = 0;
-	CHAR* computerName;
+	CHAR* computerName = NULL;
 
 	WINPR_ASSERT(context);
 
@@ -479,10 +479,10 @@ ntlm_AcceptSecurityContext(PCredHandle phCredential, PCtxtHandle phContext, PSec
                            ULONG fContextReq, ULONG TargetDataRep, PCtxtHandle phNewContext,
                            PSecBufferDesc pOutput, PULONG pfContextAttr, PTimeStamp ptsTimeStamp)
 {
-	SECURITY_STATUS status;
-	SSPI_CREDENTIALS* credentials;
-	PSecBuffer input_buffer;
-	PSecBuffer output_buffer;
+	SECURITY_STATUS status = 0;
+	SSPI_CREDENTIALS* credentials = NULL;
+	PSecBuffer input_buffer = NULL;
+	PSecBuffer output_buffer = NULL;
 
 	/* behave like windows SSPIs that don't want empty context */
 	if (phContext && !phContext->dwLower && !phContext->dwUpper)
@@ -579,9 +579,7 @@ ntlm_AcceptSecurityContext(PCredHandle phCredential, PCtxtHandle phContext, PSec
 
 			if (pOutput)
 			{
-				ULONG i;
-
-				for (i = 0; i < pOutput->cBuffers; i++)
+				for (ULONG i = 0; i < pOutput->cBuffers; i++)
 				{
 					pOutput->pBuffers[i].cbBuffer = 0;
 					pOutput->pBuffers[i].BufferType = SECBUFFER_TOKEN;
@@ -606,8 +604,8 @@ static SECURITY_STATUS SEC_ENTRY ntlm_InitializeSecurityContextW(
     ULONG Reserved1, ULONG TargetDataRep, PSecBufferDesc pInput, ULONG Reserved2,
     PCtxtHandle phNewContext, PSecBufferDesc pOutput, PULONG pfContextAttr, PTimeStamp ptsExpiry)
 {
-	SECURITY_STATUS status;
-	SSPI_CREDENTIALS* credentials;
+	SECURITY_STATUS status = 0;
+	SSPI_CREDENTIALS* credentials = NULL;
 	PSecBuffer input_buffer = NULL;
 	PSecBuffer output_buffer = NULL;
 	PSecBuffer channel_bindings = NULL;
@@ -735,7 +733,7 @@ static SECURITY_STATUS SEC_ENTRY ntlm_InitializeSecurityContextA(
     ULONG Reserved1, ULONG TargetDataRep, PSecBufferDesc pInput, ULONG Reserved2,
     PCtxtHandle phNewContext, PSecBufferDesc pOutput, PULONG pfContextAttr, PTimeStamp ptsExpiry)
 {
-	SECURITY_STATUS status;
+	SECURITY_STATUS status = 0;
 	SEC_WCHAR* pszTargetNameW = NULL;
 
 	if (pszTargetName)
@@ -763,8 +761,8 @@ static SECURITY_STATUS SEC_ENTRY ntlm_DeleteSecurityContext(PCtxtHandle phContex
 
 SECURITY_STATUS ntlm_computeProofValue(NTLM_CONTEXT* ntlm, SecBuffer* ntproof)
 {
-	BYTE* blob;
-	SecBuffer* target;
+	BYTE* blob = NULL;
+	SecBuffer* target = NULL;
 
 	WINPR_ASSERT(ntlm);
 	WINPR_ASSERT(ntproof);
@@ -789,8 +787,8 @@ SECURITY_STATUS ntlm_computeProofValue(NTLM_CONTEXT* ntlm, SecBuffer* ntproof)
 
 SECURITY_STATUS ntlm_computeMicValue(NTLM_CONTEXT* ntlm, SecBuffer* micvalue)
 {
-	BYTE* blob;
-	ULONG msgSize;
+	BYTE* blob = NULL;
+	ULONG msgSize = 0;
 
 	WINPR_ASSERT(ntlm);
 	WINPR_ASSERT(micvalue);
@@ -839,7 +837,7 @@ static SECURITY_STATUS SEC_ENTRY ntlm_QueryContextAttributesW(PCtxtHandle phCont
 	}
 	else if (ulAttribute == SECPKG_ATTR_AUTH_IDENTITY)
 	{
-		SSPI_CREDENTIALS* credentials;
+		SSPI_CREDENTIALS* credentials = NULL;
 		const SecPkgContext_AuthIdentity empty = { 0 };
 		SecPkgContext_AuthIdentity* AuthIdentity = (SecPkgContext_AuthIdentity*)pBuffer;
 
@@ -872,7 +870,7 @@ static SECURITY_STATUS SEC_ENTRY ntlm_QueryContextAttributesW(PCtxtHandle phCont
 	}
 	else if (ulAttribute == SECPKG_ATTR_AUTH_NTLM_RANDKEY)
 	{
-		SecBuffer* randkey;
+		SecBuffer* randkey = NULL;
 		randkey = (SecBuffer*)pBuffer;
 
 		if (!sspi_SecBufferAlloc(randkey, 16))
@@ -1398,31 +1396,26 @@ const SecPkgInfoA NTLM_SecPkgInfoA = {
 	"NTLM Security Package" /* Comment */
 };
 
-static WCHAR NTLM_SecPkgInfoW_Name[] = { 'N', 'T', 'L', 'M', '\0' };
-
-static WCHAR NTLM_SecPkgInfoW_Comment[] = {
-	'N', 'T', 'L', 'M', ' ', 'S', 'e', 'c', 'u', 'r', 'i',
-	't', 'y', ' ', 'P', 'a', 'c', 'k', 'a', 'g', 'e', '\0'
-};
+static WCHAR NTLM_SecPkgInfoW_NameBuffer[32] = { 0 };
+static WCHAR NTLM_SecPkgInfoW_CommentBuffer[32] = { 0 };
 
 const SecPkgInfoW NTLM_SecPkgInfoW = {
-	0x00082B37,              /* fCapabilities */
-	1,                       /* wVersion */
-	0x000A,                  /* wRPCID */
-	0x00000B48,              /* cbMaxToken */
-	NTLM_SecPkgInfoW_Name,   /* Name */
-	NTLM_SecPkgInfoW_Comment /* Comment */
+	0x00082B37,                    /* fCapabilities */
+	1,                             /* wVersion */
+	0x000A,                        /* wRPCID */
+	0x00000B48,                    /* cbMaxToken */
+	NTLM_SecPkgInfoW_NameBuffer,   /* Name */
+	NTLM_SecPkgInfoW_CommentBuffer /* Comment */
 };
 
 char* ntlm_negotiate_flags_string(char* buffer, size_t size, UINT32 flags)
 {
-	int x;
 	if (!buffer || (size == 0))
 		return buffer;
 
 	_snprintf(buffer, size, "[0x%08" PRIx32 "] ", flags);
 
-	for (x = 0; x < 31; x++)
+	for (int x = 0; x < 31; x++)
 	{
 		const UINT32 mask = 1 << x;
 		size_t len = strnlen(buffer, size);
@@ -1518,6 +1511,16 @@ BOOL ntlm_reset_cipher_state(PSecHandle phContext)
 			return FALSE;
 		}
 	}
+
+	return TRUE;
+}
+
+BOOL NTLM_init(void)
+{
+	InitializeConstWCharFromUtf8(NTLM_SecPkgInfoA.Name, NTLM_SecPkgInfoW_NameBuffer,
+	                             ARRAYSIZE(NTLM_SecPkgInfoW_NameBuffer));
+	InitializeConstWCharFromUtf8(NTLM_SecPkgInfoA.Comment, NTLM_SecPkgInfoW_CommentBuffer,
+	                             ARRAYSIZE(NTLM_SecPkgInfoW_CommentBuffer));
 
 	return TRUE;
 }

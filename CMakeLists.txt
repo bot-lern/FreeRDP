@@ -20,16 +20,16 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-project(FreeRDP C)
+if(POLICY CMP0091)
+	cmake_policy(SET CMP0091 NEW)
+endif()
+project(FreeRDP
+	LANGUAGES C
+)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
-
-# Default to release build type
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "Release" CACHE STRING "project default" FORCE)
-endif()
 
 add_custom_target(fuzzers
 	COMMENT "Build fuzzers"
@@ -47,10 +47,6 @@ if(NOT DEFINED FREERDP_VENDOR)
 	set(FREERDP_VENDOR 1)
 endif()
 
-option(CMAKE_COLOR_MAKEFILE "colorful CMake makefile" ON)
-option(CMAKE_VERBOSE_MAKEFILE "verbose CMake makefile" ON)
-option(CMAKE_POSITION_INDEPENDENT_CODE "build with position independent code (-fPIC or -fPIE)" ON)
-
 if (NOT WIN32 AND NOT ANDROID)
 	if (APPLE)
 		set(OPT_DEFAULT_VAL OFF)
@@ -62,6 +58,7 @@ endif()
 
 # Include our extra modules
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/)
+include(CommonConfigOptions)
 
 if((CMAKE_SYSTEM_NAME MATCHES "WindowsStore") AND (CMAKE_SYSTEM_VERSION MATCHES "10.0"))
 	set(UWP 1)
@@ -90,27 +87,19 @@ include(ShowCMakeVars)
 include(ConfigOptions)
 include(FeatureSummary)
 include(CheckCCompilerFlag)
-include(GNUInstallDirsWrapper)
 include(CMakePackageConfigHelpers)
 include(InstallFreeRDPMan)
 include(GetGitRevisionDescription)
 include(SetFreeRDPCMakeInstallDir)
-
-include(CheckIPOSupported)
-check_ipo_supported(RESULT supported OUTPUT error)
-if (supported)
-	option(CMAKE_INTERPROCEDURAL_OPTIMIZATION "Enable LTO linking" TRUE)
-endif()
 
 # Soname versioning
 set(BUILD_NUMBER 0)
 if ($ENV{BUILD_NUMBER})
 	set(BUILD_NUMBER $ENV{BUILD_NUMBER})
 endif()
-set(WITH_LIBRARY_VERSIONING "ON")
 
 set(VERSION_REGEX "^(.*)([0-9]+)\\.([0-9]+)\\.([0-9]+)-?(.*)")
-set(RAW_VERSION_STRING "3.0.0-dev5")
+set(RAW_VERSION_STRING "3.3.1-dev0")
 if(EXISTS "${PROJECT_SOURCE_DIR}/.source_tag")
 	file(READ ${PROJECT_SOURCE_DIR}/.source_tag RAW_VERSION_STRING)
 elseif(USE_VERSION_FROM_GIT_TAG)
@@ -155,6 +144,9 @@ if (NOT GIT_REVISION)
 endif()
 
 message(STATUS "Git Revision ${GIT_REVISION}")
+
+# Make the detected version available as default version for all subprojects
+set(FREERDP_DEFAULT_PROJECT_VERSION ${FREERDP_VERSION} CACHE STRING INTERNAL)
 
 set(FREERDP_MAJOR_DIR "freerdp${FREERDP_VERSION_MAJOR}")
 set(FREERDP_INCLUDE_DIR "include/${FREERDP_MAJOR_DIR}/")
@@ -203,12 +195,6 @@ endif(CMAKE_CROSSCOMPILING)
 # Turn on solution folders (2.8.4+)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-
-set(LIB_DEFAULT ON)
-if (IOS)
-	set(LIB_DEFAULT OFF)
-endif()
-option(BUILD_SHARED_LIBS "Build shared libraries" ${LIB_DEFAULT})
 option(EXPORT_ALL_SYMBOLS "Export all symbols form library" OFF)
 
 if(BUILD_TESTING)
@@ -227,27 +213,6 @@ endif(EXPORT_ALL_SYMBOLS)
 if(FREEBSD)
 	find_path(EPOLLSHIM_INCLUDE_DIR NAMES sys/epoll.h sys/timerfd.h HINTS /usr/local/include/libepoll-shim)
 	find_library(EPOLLSHIM_LIBS NAMES epoll-shim libepoll-shim HINTS /usr/local/lib)
-endif()
-
-# Configure MSVC Runtime
-if(MSVC)
-	include(MSVCRuntime)
-	if(NOT DEFINED MSVC_RUNTIME)
-		set(MSVC_RUNTIME "dynamic" CACHE STRING "MSVC runtime type [dynamic|static]")
-	endif()
-	if(MSVC_RUNTIME STREQUAL "static")
-		if(BUILD_SHARED_LIBS)
-			message(FATAL_ERROR "Static CRT is only supported in a fully static build")
-		endif()
-		message(STATUS "Use the MSVC static runtime option carefully!")
-		message(STATUS "OpenSSL uses /MD by default, and is very picky")
-		message(STATUS "Random freeing errors are a common sign of runtime issues")
-	endif()
-	configure_msvc_runtime()
-
-	if(NOT DEFINED CMAKE_SUPPRESS_REGENERATION)
-		set(CMAKE_SUPPRESS_REGENERATION ON)
-	endif()
 endif()
 
 # Enable 64bit file support on linux and FreeBSD.
@@ -480,8 +445,6 @@ endif(APPLE)
 
 # Android
 if(ANDROID)
-	set(WITH_LIBRARY_VERSIONING "OFF")
-
 	set_property( GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS ${ANDROID_LIBRARY_USE_LIB64_PATHS} )
 
 	if (${ANDROID_ABI} STREQUAL "armeabi")
@@ -533,7 +496,7 @@ else()
 	unset(FREERDP_HAVE_VALGRIND_MEMCHECK_H CACHE)
 endif()
 
-if((UNIX OR CYGWIN) AND NOT BSD)
+if(UNIX OR CYGWIN)
 	set(WAYLAND_FEATURE_TYPE "RECOMMENDED")
 else()
 	set(WAYLAND_FEATURE_TYPE "DISABLED")
@@ -569,10 +532,6 @@ set(VAAPI_FEATURE_DESCRIPTION "VA-API hardware acceleration for video playback")
 set(IPP_FEATURE_TYPE "OPTIONAL")
 set(IPP_FEATURE_PURPOSE "performance")
 set(IPP_FEATURE_DESCRIPTION "Intel Integrated Performance Primitives library")
-
-set(JPEG_FEATURE_TYPE "OPTIONAL")
-set(JPEG_FEATURE_PURPOSE "codec")
-set(JPEG_FEATURE_DESCRIPTION "use JPEG library")
 
 set(OPENH264_FEATURE_TYPE "OPTIONAL")
 set(OPENH264_FEATURE_PURPOSE "codec")
@@ -626,20 +585,26 @@ endif()
 
 find_feature(Wayland ${WAYLAND_FEATURE_TYPE} ${WAYLAND_FEATURE_PURPOSE} ${WAYLAND_FEATURE_DESCRIPTION})
 
-find_feature(OpenSSL ${OPENSSL_FEATURE_TYPE} ${OPENSSL_FEATURE_PURPOSE} ${OPENSSL_FEATURE_DESCRIPTION})
-find_feature(MbedTLS ${MBEDTLS_FEATURE_TYPE} ${MBEDTLS_FEATURE_PURPOSE} ${MBEDTLS_FEATURE_DESCRIPTION})
+option(WITH_LIBRESSL "build with LibreSSL" OFF)
+if (WITH_LIBRESSL)
+	find_package(LibreSSL REQUIRED)
+	include_directories(${LibreSSL_INCLUDE_DIRS})
+	set(OPENSSL_INCLUDE_DIR ${LIBRESSL_INCLUDE_DIR})
+	set(OPENSSL_LIBRARIES ${LIBRESSL_LIBRARIES})
+	set(OPENSSL_CRYPTO_LIBRARIES ${LIBRESSL_LIBRARIES})
+	set(WITH_OPENSSL ON)
+	set(OPENSSL_FOUND ON)
+	add_definitions("-DWITH_LIBRESSL")
+	add_definitions("-DWITH_OPENSSL")
+else()
+	find_feature(OpenSSL ${OPENSSL_FEATURE_TYPE} ${OPENSSL_FEATURE_PURPOSE} ${OPENSSL_FEATURE_DESCRIPTION})
+	find_feature(MbedTLS ${MBEDTLS_FEATURE_TYPE} ${MBEDTLS_FEATURE_PURPOSE} ${MBEDTLS_FEATURE_DESCRIPTION})
+endif()
 
 find_feature(PCSC ${PCSC_FEATURE_TYPE} ${PCSC_FEATURE_PURPOSE} ${PCSC_FEATURE_DESCRIPTION})
 
 find_package(cJSON)
 option(WITH_AAD "Compile with support for Azure AD authentication" ${cJSON_FOUND})
-if (WITH_AAD)
-	if (NOT cJSON_FOUND)
-		find_package(PkgConfig REQUIRED)
-		pkg_check_modules(CJSON REQUIRED libcjson)
-	endif()
-	include_directories(${CJSON_INCLUDE_DIRS})
-endif()
 
 if (WITH_DSP_FFMPEG OR WITH_VIDEO_FFMPEG OR WITH_FFMPEG)
 	set(FFMPEG_FEATURE_TYPE "REQUIRED" )
@@ -647,7 +612,6 @@ endif()
 
 find_feature(FFmpeg ${FFMPEG_FEATURE_TYPE} ${FFMPEG_FEATURE_PURPOSE} ${FFMPEG_FEATURE_DESCRIPTION})
 
-find_feature(JPEG ${JPEG_FEATURE_TYPE} ${JPEG_FEATURE_PURPOSE} ${JPEG_FEATURE_DESCRIPTION})
 find_feature(OpenH264 ${OPENH264_FEATURE_TYPE} ${OPENH264_FEATURE_PURPOSE} ${OPENH264_FEATURE_DESCRIPTION})
 find_feature(OpenCL ${OPENCL_FEATURE_TYPE} ${OPENCL_FEATURE_PURPOSE} ${OPENCL_FEATURE_DESCRIPTION})
 find_feature(GSM ${GSM_FEATURE_TYPE} ${GSM_FEATURE_PURPOSE} ${GSM_FEATURE_DESCRIPTION})
@@ -708,7 +672,9 @@ if(OPENSSL_FOUND)
 	add_definitions("-DWITH_OPENSSL")
 	message(STATUS "Using OpenSSL Version: ${OPENSSL_VERSION}")
 	include_directories(${OPENSSL_INCLUDE_DIR})
-elseif(MBEDTLS_FOUND)
+endif()
+
+if(MBEDTLS_FOUND)
 	add_definitions("-DWITH_MBEDTLS")
 endif()
 
@@ -721,6 +687,13 @@ endif()
 # Android expects all libraries to be loadable
 # without paths.
 if (ANDROID OR WIN32 OR MAC_BUNDLE)
+	set(PLUGIN_ABS_PATHS_DEFAULT OFF)
+else()
+	set(PLUGIN_ABS_PATHS_DEFAULT ON)
+endif()
+option(WITH_ABSOLUTE_PLUGIN_LOAD_PATHS "Load plugins with absolute paths" ${PLUGIN_ABS_PATHS_DEFAULT})
+
+if (NOT WITH_ABSOLUTE_PLUGIN_LOAD_PATHS)
   set(FREERDP_DATA_PATH "share")
   if (NOT FREERDP_INSTALL_PREFIX)
 	  set(FREERDP_INSTALL_PREFIX ".")
@@ -733,7 +706,11 @@ else()
 		set(FREERDP_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 	endif()
 	set(FREERDP_LIBRARY_PATH "${CMAKE_INSTALL_LIBDIR}")
-	set(FREERDP_PLUGIN_PATH "${CMAKE_INSTALL_LIBDIR}/${FREERDP_MAJOR_DIR}")
+	if (WIN32)
+		set(FREERDP_PLUGIN_PATH "${CMAKE_INSTALL_BINDIR}/${FREERDP_MAJOR_DIR}")
+	else()
+		set(FREERDP_PLUGIN_PATH "${CMAKE_INSTALL_LIBDIR}/${FREERDP_MAJOR_DIR}")
+	endif()
 endif()
 set(FREERDP_ADDIN_PATH "${FREERDP_PLUGIN_PATH}")
 
@@ -749,9 +726,6 @@ if(NOT DEFINED PROXY_PLUGINDIR)
 else()
 	set(FREERDP_PROXY_PLUGINDIR "${PROXY_PLUGINDIR}")
 endif()
-
-# RPATH configuration
-include(ConfigureRPATH)
 
 if (BUILD_SHARED_LIBS)
 	set(CMAKE_MACOSX_RPATH ON)

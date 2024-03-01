@@ -15,37 +15,54 @@ set(SRCS
     sdl_select.cpp
     sdl_selectlist.hpp
     sdl_selectlist.cpp
+    sdl_connection_dialog.cpp
+    sdl_connection_dialog.hpp
 )
 
-set(LIBS
-    ${SDL2_LIBRARIES}
-    font
+list(APPEND LIBS
+    sdl_client_res
     winpr
 )
 
-find_package(SDL2_ttf COMPONENTS)
-if (NOT SDL2_ttf_FOUND)
-	find_package(PkgConfig REQUIRED)
-	pkg_check_modules(SDL2_ttf REQUIRED SDL2_ttf)
-
-	if (BUILD_SHARED_LIBS)
-		list(APPEND LIBS ${SDL2_ttf_LIBRARIES})
-		link_directories(${SDL2_ttf_LIBRARY_DIRS})
-		include_directories(${SDL2_ttf_INCLUDE_DIRS})
-	else()
-		list(APPEND LIBS ${SDL2_ttf_STATIC_LIBRARIES})
-		link_directories(${SDL2_ttf_STATIC_LIBRARY_DIRS})
-		include_directories(${SDL2_ttf_STATIC_INCLUDE_DIRS})
-	endif()
+if (NOT WITH_SDL_LINK_SHARED)
+    list(APPEND LIBS ${SDL2_STATIC_LIBRARIES})
 else()
-	if (BUILD_SHARED_LIBS)
-		list(APPEND LIBS SDL2_ttf::SDL2_ttf)
-	else()
-		list(APPEND LIBS SDL2_ttf::SDL2_ttf-static)
-	endif()
+    list(APPEND LIBS ${SDL2_LIBRARIES})
 endif()
 
-add_subdirectory(font)
+macro(find_sdl_component name)
+	find_package(${name})
+	if (NOT ${name}_FOUND)
+		find_package(PkgConfig REQUIRED)
+		pkg_check_modules(${name} REQUIRED ${name})
+
+		if (BUILD_SHARED_LIBS)
+			list(APPEND LIBS ${${name}_LIBRARIES})
+			link_directories(${${name}_LIBRARY_DIRS})
+			include_directories(${${name}_INCLUDE_DIRS})
+		else()
+			list(APPEND LIBS ${${name}_STATIC_LIBRARIES})
+			link_directories(${${name}_STATIC_LIBRARY_DIRS})
+			include_directories(${${name}_STATIC_INCLUDE_DIRS})
+		endif()
+	else()
+		if (WITH_SDL_LINK_SHARED)
+			list(APPEND LIBS ${name}::${name})
+		else()
+			list(APPEND LIBS ${name}::${name}-static)
+		endif()
+	endif()
+endmacro()
+
+find_sdl_component(SDL2_ttf)
+
+option(WITH_SDL_IMAGE_DIALOGS "Build with SDL_image support (recommended)" OFF)
+if (WITH_SDL_IMAGE_DIALOGS)
+    find_sdl_component(SDL2_image)
+    add_definitions(-DWITH_SDL_IMAGE_DIALOGS)
+endif()
+
+add_subdirectory(res)
 
 add_library(dialogs STATIC
     ${SRCS}

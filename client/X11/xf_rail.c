@@ -155,13 +155,14 @@ void xf_rail_adjust_position(xfContext* xfc, xfAppWindow* appWindow)
 
 void xf_rail_end_local_move(xfContext* xfc, xfAppWindow* appWindow)
 {
-	int x, y;
-	int child_x;
-	int child_y;
-	unsigned int mask;
-	Window root_window;
-	Window child_window;
-	rdpInput* input;
+	int x = 0;
+	int y = 0;
+	int child_x = 0;
+	int child_y = 0;
+	unsigned int mask = 0;
+	Window root_window = 0;
+	Window child_window = 0;
+	rdpInput* input = NULL;
 
 	WINPR_ASSERT(xfc);
 
@@ -567,14 +568,15 @@ static BOOL xf_rail_window_delete(rdpContext* context, const WINDOW_ORDER_INFO* 
 
 static xfRailIconCache* RailIconCache_New(rdpSettings* settings)
 {
-	xfRailIconCache* cache;
+	xfRailIconCache* cache = NULL;
 	cache = calloc(1, sizeof(xfRailIconCache));
 
 	if (!cache)
 		return NULL;
 
-	cache->numCaches = settings->RemoteAppNumIconCaches;
-	cache->numCacheEntries = settings->RemoteAppNumIconCacheEntries;
+	cache->numCaches = freerdp_settings_get_uint32(settings, FreeRDP_RemoteAppNumIconCaches);
+	cache->numCacheEntries =
+	    freerdp_settings_get_uint32(settings, FreeRDP_RemoteAppNumIconCacheEntries);
 	cache->entries = calloc(1ull * cache->numCaches * cache->numCacheEntries, sizeof(xfRailIcon));
 
 	if (!cache->entries)
@@ -590,11 +592,9 @@ static xfRailIconCache* RailIconCache_New(rdpSettings* settings)
 
 static void RailIconCache_Free(xfRailIconCache* cache)
 {
-	UINT32 i;
-
 	if (cache)
 	{
-		for (i = 0; i < cache->numCaches * cache->numCacheEntries; i++)
+		for (UINT32 i = 0; i < cache->numCaches * cache->numCacheEntries; i++)
 		{
 			free(cache->entries[i].data);
 		}
@@ -641,10 +641,9 @@ static xfRailIcon* RailIconCache_Lookup(xfRailIconCache* cache, UINT8 cacheId, U
 static BOOL convert_rail_icon(const ICON_INFO* iconInfo, xfRailIcon* railIcon)
 {
 	BYTE* argbPixels = NULL;
-	BYTE* nextPixel;
-	long* pixels;
-	int i;
-	int nelements;
+	BYTE* nextPixel = NULL;
+	long* pixels = NULL;
+	int nelements = 0;
 	argbPixels = calloc(1ull * iconInfo->width * iconInfo->height, 4);
 
 	if (!argbPixels)
@@ -668,7 +667,7 @@ static BOOL convert_rail_icon(const ICON_INFO* iconInfo, xfRailIcon* railIcon)
 	pixels[1] = iconInfo->height;
 	nextPixel = argbPixels;
 
-	for (i = 2; i < nelements; i++)
+	for (int i = 2; i < nelements; i++)
 	{
 		pixels[i] = FreeRDPReadColor(nextPixel, PIXEL_FORMAT_BGRA32);
 		nextPixel += 4;
@@ -696,9 +695,9 @@ static BOOL xf_rail_window_icon(rdpContext* context, const WINDOW_ORDER_INFO* or
                                 const WINDOW_ICON_ORDER* windowIcon)
 {
 	xfContext* xfc = (xfContext*)context;
-	xfAppWindow* railWindow;
-	xfRailIcon* icon;
-	BOOL replaceIcon;
+	xfAppWindow* railWindow = NULL;
+	xfRailIcon* icon = NULL;
+	BOOL replaceIcon = 0;
 	railWindow = xf_rail_get_window(xfc, orderInfo->windowId);
 
 	if (!railWindow)
@@ -729,9 +728,9 @@ static BOOL xf_rail_window_cached_icon(rdpContext* context, const WINDOW_ORDER_I
                                        const WINDOW_CACHED_ICON_ORDER* windowCachedIcon)
 {
 	xfContext* xfc = (xfContext*)context;
-	xfAppWindow* railWindow;
-	xfRailIcon* icon;
-	BOOL replaceIcon;
+	xfAppWindow* railWindow = NULL;
+	xfRailIcon* icon = NULL;
+	BOOL replaceIcon = 0;
 	railWindow = xf_rail_get_window(xfc, orderInfo->windowId);
 
 	if (!railWindow)
@@ -837,7 +836,7 @@ static void xf_rail_register_update_callbacks(rdpUpdate* update)
 static UINT xf_rail_server_execute_result(RailClientContext* context,
                                           const RAIL_EXEC_RESULT_ORDER* execResult)
 {
-	xfContext* xfc;
+	xfContext* xfc = NULL;
 
 	WINPR_ASSERT(context);
 	WINPR_ASSERT(execResult);
@@ -901,9 +900,10 @@ static UINT xf_rail_server_handshake_ex(RailClientContext* context,
 static UINT xf_rail_server_local_move_size(RailClientContext* context,
                                            const RAIL_LOCALMOVESIZE_ORDER* localMoveSize)
 {
-	int x = 0, y = 0;
+	int x = 0;
+	int y = 0;
 	int direction = 0;
-	Window child_window;
+	Window child_window = 0;
 	xfContext* xfc = (xfContext*)context->custom;
 	xfAppWindow* appWindow = xf_rail_get_window(xfc, localMoveSize->windowId);
 
@@ -1133,7 +1133,7 @@ int xf_rail_uninit(xfContext* xfc, RailClientContext* rail)
 xfAppWindow* xf_rail_add_window(xfContext* xfc, UINT64 id, UINT32 x, UINT32 y, UINT32 width,
                                 UINT32 height, UINT32 surfaceId)
 {
-	xfAppWindow* appWindow;
+	xfAppWindow* appWindow = NULL;
 
 	if (!xfc)
 		return NULL;

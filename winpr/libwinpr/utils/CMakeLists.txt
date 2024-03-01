@@ -19,7 +19,47 @@ include(CheckFunctionExists)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+option(WITH_LODEPNG "build WinPR with PNG support" OFF)
+if (WITH_LODEPNG)
+        find_package(lodepng REQUIRED)
+
+        winpr_definition_add(-DWITH_LODEPNG)
+        set(WINPR_WITH_PNG ON CACHE BOOL "build cache")
+
+        winpr_include_directory_add(${lodepng_INCLUDE_DIRS})
+        winpr_library_add_private(${lodepng_LIBRARIES})
+endif()
+
+option(WINPR_UTILS_IMAGE_PNG "Add PNG <--> BMP conversion support to clipboard" OFF)
+if (WINPR_UTILS_IMAGE_PNG)
+	find_package(PNG REQUIRED)
+
+        set(WINPR_WITH_PNG ON CACHE BOOL "build cache")
+	winpr_include_directory_add(${PNG_INCLUDE_DIRS})
+	winpr_library_add_private(${PNG_LIBRARIES})
+endif()
+
+option(WINPR_UTILS_IMAGE_WEBP "Add WebP <--> BMP conversion support to clipboard" OFF)
+if (WINPR_UTILS_IMAGE_WEBP)
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(WEBP libwebp REQUIRED)
+
+	winpr_include_directory_add(${WEBP_INCLUDE_DIRS})
+	winpr_library_add_private(${WEBP_LIBRARIES})
+endif()
+
+option(WINPR_UTILS_IMAGE_JPEG "Add Jpeg <--> BMP conversion support to clipboard" OFF)
+if (WINPR_UTILS_IMAGE_JPEG)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(JPEG libjpeg REQUIRED)
+
+    winpr_include_directory_add(${JPEG_INCLUDE_DIRS})
+    winpr_library_add_private(${JPEG_LIBRARIES})
+endif()
+
+
 set(COLLECTIONS_SRCS
+	collections/Object.c
 	collections/Queue.c
 	collections/Stack.c
 	collections/PubSub.c
@@ -126,15 +166,19 @@ if (WIN32)
 endif()
 
 if (WINPR_HAVE_EXECINFO_H)
-    list(APPEND SRCS
-        execinfo/debug.c
-        execinfo/debug.h)
+    option(USE_EXECINFO "Use execinfo.h to generate backtraces" ON)
+    if (USE_EXECINFO)
+        winpr_definition_add(-DUSE_EXECINFO)
+        list(APPEND SRCS
+            execinfo/debug.c
+            execinfo/debug.h)
+    endif()
 endif()
 
 if (WINPR_HAVE_UNWIND_H)
     option(USE_UNWIND "Use unwind.h to generate backtraces" ON)
     if (USE_UNWIND)
-        add_definitions(-DUSE_UNWIND)
+        winpr_definition_add(-DUSE_UNWIND)
         list(APPEND SRCS
             unwind/debug.c
             unwind/debug.h)
@@ -150,17 +194,6 @@ winpr_module_add(${SRCS}
 winpr_include_directory_add(
 	"."
 )
-
-option(WITH_LODEPNG "build WinPR with PNG support" OFF)
-if (WITH_LODEPNG)
-	find_package(lodepng REQUIRED)
-
-	winpr_definition_add(-DWITH_LODEPNG)
-	set(WINPR_WITH_PNG ON CACHE BOOL "build cache")
-
-	winpr_include_directory_add(${lodepng_INCLUDE_DIRS})
-	winpr_library_add_private(${lodepng_LIBRARIES})
-endif()
 
 if(OPENSSL_FOUND)
 	winpr_include_directory_add(${OPENSSL_INCLUDE_DIR})

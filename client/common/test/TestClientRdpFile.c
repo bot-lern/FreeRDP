@@ -162,12 +162,14 @@ static const BYTE testRdpFileUTF16[] = {
 	0x65, 0x00, 0x0d, 0x00, 0x0a, 0x00
 };
 
+#if defined(CHANNEL_RDPECAM_CLIENT)
 static const char* camera_args[] = { RDPECAM_DVC_CHANNEL_NAME,
 	                                 "device:*",
 	                                 "device:\\?\\usb#vid_0bda&pid_58b0&mi",
 	                                 "device:-\\?\\usb#vid_0bdc&pid_58b1&mi",
 	                                 "encode:1",
 	                                 "quality:2" };
+#endif
 
 #if defined(CHANNEL_URBDRC_CLIENT)
 static const char* urbdrc_args[] = { "urbdrc", "device:*", "device:USBInstanceID:someid",
@@ -235,8 +237,8 @@ static char testRdpFileUTF8[] =
 
 static char* append(const char* fmt, ...)
 {
-	int rc;
-	char* dst;
+	int rc = 0;
+	char* dst = NULL;
 	va_list ap;
 
 	va_start(ap, fmt);
@@ -262,17 +264,17 @@ static char* append(const char* fmt, ...)
 int TestClientRdpFile(int argc, char* argv[])
 {
 	int rc = -1;
-	int iValue;
-	UINT32 uValue;
-	const UINT32* puValue;
-	const char* sValue;
+	int iValue = 0;
+	UINT32 uValue = 0;
+	const UINT32* puValue = NULL;
+	const char* sValue = NULL;
 	char* utfname = NULL;
 	char* uniname = NULL;
 	char* base = NULL;
 	char* tmp = NULL;
-	UINT64 id;
-	rdpFile* file;
-	rdpSettings* settings;
+	UINT64 id = 0;
+	rdpFile* file = NULL;
+	rdpSettings* settings = NULL;
 
 	WINPR_UNUSED(argc);
 	WINPR_UNUSED(argv);
@@ -294,38 +296,43 @@ int TestClientRdpFile(int argc, char* argv[])
 	if (!freerdp_client_populate_settings_from_rdp_file(file, settings))
 		goto fail;
 
-	if (settings->UseMultimon)
+	if (freerdp_settings_get_bool(settings, FreeRDP_UseMultimon))
 	{
-		printf("UseMultiMon mismatch: Actual: %" PRIu32 ", Expected: 0\n", settings->UseMultimon);
+		printf("UseMultiMon mismatch: Actual: %" PRIu32 ", Expected: 0\n",
+		       freerdp_settings_get_bool(settings, FreeRDP_UseMultimon));
 		goto fail;
 	}
 
-	if (!settings->Fullscreen)
+	if (!freerdp_settings_get_bool(settings, FreeRDP_Fullscreen))
 	{
 		printf("ScreenModeId mismatch: Actual: %" PRIu32 ", Expected: TRUE\n",
-		       settings->Fullscreen);
+		       freerdp_settings_get_bool(settings, FreeRDP_Fullscreen));
 		goto fail;
 	}
 
 #if 0 /* TODO: Currently unused */
-	if (settings->GatewayProfileUsageMethod != 1)
+	if (freerdp_settings_get_uint32(settings, FreeRDP_GatewayProfileUsageMethod) != 1)
 	{
 		printf("GatewayProfileUsageMethod mismatch: Actual: %"PRIu32", Expected: 1\n",
-			   settings->GatewayProfileUsageMethod);
+			   freerdp_settings_get_uint32(settings, FreeRDP_GatewayProfileUsageMethod));
 		goto fail;
 	}
 #endif
 
-	if (strcmp(settings->GatewayHostname, "LAB1-W2K8R2-GW.lab1.awake.local") != 0)
+	if (strcmp(freerdp_settings_get_string(settings, FreeRDP_GatewayHostname),
+	           "LAB1-W2K8R2-GW.lab1.awake.local") != 0)
 	{
-		printf("GatewayHostname mismatch: Actual: %s, Expected: %s\n", settings->GatewayHostname,
+		printf("GatewayHostname mismatch: Actual: %s, Expected: %s\n",
+		       freerdp_settings_get_string(settings, FreeRDP_GatewayHostname),
 		       "LAB1-W2K8R2-GW.lab1.awake.local");
 		goto fail;
 	}
 
-	if (strcmp(settings->ServerHostname, "LAB1-W7-DM-01.lab1.awake.local") != 0)
+	if (strcmp(freerdp_settings_get_string(settings, FreeRDP_ServerHostname),
+	           "LAB1-W7-DM-01.lab1.awake.local") != 0)
 	{
-		printf("ServerHostname mismatch: Actual: %s, Expected: %s\n", settings->ServerHostname,
+		printf("ServerHostname mismatch: Actual: %s, Expected: %s\n",
+		       freerdp_settings_get_string(settings, FreeRDP_ServerHostname),
 		       "LAB1-W7-DM-01.lab1.awake.local");
 		goto fail;
 	}
@@ -348,38 +355,43 @@ int TestClientRdpFile(int argc, char* argv[])
 	if (!freerdp_client_populate_settings_from_rdp_file(file, settings))
 		goto fail;
 
-	if (settings->UseMultimon != 0)
+	if (freerdp_settings_get_bool(settings, FreeRDP_UseMultimon))
 	{
-		printf("UseMultiMon mismatch: Actual: %" PRIu32 ", Expected: 0\n", settings->UseMultimon);
+		printf("UseMultiMon mismatch: Actual: %" PRIu32 ", Expected: 0\n",
+		       freerdp_settings_get_bool(settings, FreeRDP_UseMultimon));
 		return -1;
 	}
 
-	if (!settings->Fullscreen)
+	if (!freerdp_settings_get_bool(settings, FreeRDP_Fullscreen))
 	{
 		printf("ScreenModeId mismatch: Actual: %" PRIu32 ", Expected: TRUE\n",
-		       settings->Fullscreen);
+		       freerdp_settings_get_bool(settings, FreeRDP_Fullscreen));
 		return -1;
 	}
 
 #if 0 /* TODO: Currently unused */
-	if (settings->GatewayProfileUsageMethod != 1)
+	if (freerdp_settings_get_uint32(settings, FreeRDP_GatewayProfileUsageMethod) != 1)
 	{
 		printf("GatewayProfileUsageMethod mismatch: Actual: %"PRIu32", Expected: 1\n",
-			   settings->GatewayProfileUsageMethod);
+			   freerdp_settings_get_uint32(settings, FreeRDP_GatewayProfileUsageMethod));
 		goto fail;
 	}
 #endif
 
-	if (strcmp(settings->ServerHostname, "LAB1-W7-DM-01.lab1.awake.global") != 0)
+	if (strcmp(freerdp_settings_get_string(settings, FreeRDP_ServerHostname),
+	           "LAB1-W7-DM-01.lab1.awake.global") != 0)
 	{
-		printf("ServerHostname mismatch: Actual: %s, Expected: %s\n", settings->ServerHostname,
+		printf("ServerHostname mismatch: Actual: %s, Expected: %s\n",
+		       freerdp_settings_get_string(settings, FreeRDP_ServerHostname),
 		       "LAB1-W7-DM-01.lab1.awake.global");
 		goto fail;
 	}
 
-	if (strcmp(settings->GatewayHostname, "LAB1-W2K8R2-GW.lab1.awake.local") != 0)
+	if (strcmp(freerdp_settings_get_string(settings, FreeRDP_GatewayHostname),
+	           "LAB1-W2K8R2-GW.lab1.awake.local") != 0)
 	{
-		printf("GatewayHostname mismatch: Actual: %s, Expected: %s\n", settings->GatewayHostname,
+		printf("GatewayHostname mismatch: Actual: %s, Expected: %s\n",
+		       freerdp_settings_get_string(settings, FreeRDP_GatewayHostname),
 		       "LAB1-W2K8R2-GW.lab1.awake.local");
 		goto fail;
 	}
@@ -410,8 +422,7 @@ int TestClientRdpFile(int argc, char* argv[])
 	/* Check [MS-RDPECAM] related options */
 #if defined(CHANNEL_RDPECAM_CLIENT)
 	{
-		int x;
-		ADDIN_ARGV* args;
+		ADDIN_ARGV* args = NULL;
 		iValue =
 		    freerdp_client_rdp_file_get_integer_option(file, "encode redirected video capture");
 		if (iValue != 1)
@@ -439,7 +450,7 @@ int TestClientRdpFile(int argc, char* argv[])
 			goto fail;
 		}
 
-		for (x = 0; x < args->argc; x++)
+		for (int x = 0; x < args->argc; x++)
 		{
 			if (strcmp(args->argv[x], camera_args[x]) != 0)
 			{
@@ -453,7 +464,6 @@ int TestClientRdpFile(int argc, char* argv[])
 	/* Check [URBDRC] related options */
 #if defined(CHANNEL_URBDRC_CLIENT)
 	{
-		int x;
 		ADDIN_ARGV* args = freerdp_dynamic_channel_collection_find(settings, "urbdrc");
 		if (!args)
 		{
@@ -466,7 +476,7 @@ int TestClientRdpFile(int argc, char* argv[])
 			goto fail;
 		}
 
-		for (x = 0; x < args->argc; x++)
+		for (int x = 0; x < args->argc; x++)
 		{
 			if (strcmp(args->argv[x], urbdrc_args[x]) != 0)
 			{

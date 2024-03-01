@@ -21,7 +21,7 @@
 
 #include <memory>
 #include <thread>
-#include <vector>
+#include <map>
 
 #include <freerdp/freerdp.h>
 #include <freerdp/client/rdpei.h>
@@ -36,13 +36,8 @@
 #include "sdl_disp.hpp"
 #include "sdl_kbd.hpp"
 #include "sdl_utils.hpp"
-
-typedef struct
-{
-	SDL_Window* window;
-	int offset_x;
-	int offset_y;
-} sdl_window_t;
+#include "sdl_window.hpp"
+#include "dialogs/sdl_connection_dialog.hpp"
 
 using SDLSurfacePtr = std::unique_ptr<SDL_Surface, decltype(&SDL_FreeSurface)>;
 using SDLPixelFormatPtr = std::unique_ptr<SDL_PixelFormat, decltype(&SDL_FreeFormat)>;
@@ -50,7 +45,7 @@ using SDLPixelFormatPtr = std::unique_ptr<SDL_PixelFormat, decltype(&SDL_FreeFor
 class SdlContext
 {
   public:
-	SdlContext(rdpContext* context);
+	explicit SdlContext(rdpContext* context);
 
   private:
 	rdpContext* _context;
@@ -64,7 +59,7 @@ class SdlContext
 	bool grab_mouse = false;
 	bool grab_kbd = false;
 
-	std::vector<sdl_window_t> windows;
+	std::map<Uint32, SdlWindow> windows;
 
 	CriticalSection critical;
 	std::thread thread;
@@ -82,10 +77,12 @@ class SdlContext
 
 	Uint32 sdl_pixel_format = 0;
 
+	std::unique_ptr<SDLConnectionDialog> connection_dialog;
+
   public:
 	BOOL update_resizeable(BOOL enable);
 	BOOL update_fullscreen(BOOL enter);
 
-	rdpContext* context() const;
-	rdpClientContext* common() const;
+	[[nodiscard]] rdpContext* context() const;
+	[[nodiscard]] rdpClientContext* common() const;
 };
